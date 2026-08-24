@@ -44,7 +44,7 @@
    * La barre oblique finale compte : l'adresse désigne le dossier publié, et
    * c'est son index.html qui est la visite.
    */
-  var URL_PUBLIQUE = "";
+  var URL_PUBLIQUE = "https://cashcarrelagefrejus.github.io/visite-cash-carrelage/";
 
   /**
    * Choisit entre le lien public et le lien local.
