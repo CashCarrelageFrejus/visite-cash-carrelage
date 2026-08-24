@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Visite immersive — Cash Carrelage Fréjus</title>
+
+  <!--
+    Page de visite en lecture seule.
+
+    Elle rejoue un projet porté par l'ancre de son URL. Aucun réglage,
+    aucun formulaire : le client marche dans la maison qu'on lui a montrée,
+    c'est tout ce qu'elle sait faire.
+
+    Elle partage le moteur de l'application — même scene.js, mêmes matériaux,
+    même calepinage — mais pas son interface. Les deux fichiers qui ne
+    servent qu'à éditer (panneau.js, traceur2d.js) sont remplacés par des
+    bouchons : le moteur les appelle, ils ne font rien. C'est ce qui garantit
+    qu'on ne peut pas éditer depuis ici, plutôt qu'un simple masquage.
+  -->
+
+  <style>
+    :root {
+      --fond: #0b0c0f;
+      --texte: #e8e9ed;
+      --texte-faible: #9a9daa;
+      --voile: rgba(14, 15, 19, 0.82);
+      --bord: rgba(255, 255, 255, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--fond);
+      color: var(--texte);
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      /* Sur mobile, le navigateur zoomerait sur un double-appui et
+         sélectionnerait le texte pendant qu'on regarde autour de soi. */
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: none;
+    }
+
+    #renderCanvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      outline: none;
+      touch-action: none;
+    }
+
+    /* --- En-tête : à qui appartient ce qu'on regarde -------------------- */
+
+    #entete {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+      /* Le voile descend plus bas et plus longtemps qu'il n'y paraît : la
+         visite s'ouvre souvent sur un ciel clair, et deux lignes de texte
+         pâle y disparaîtraient. */
+      background: linear-gradient(to bottom,
+                  rgba(11, 12, 15, 0.86) 0%,
+                  rgba(11, 12, 15, 0.62) 55%,
+                  rgba(11, 12, 15, 0) 100%);
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    #entete .projet {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+    }
+
+    #entete .enseigne {
+      margin: 2px 0 0;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #c3c6d2;
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+    }
+
+    /* --- Fiche des matériaux -------------------------------------------- */
+
+    #fiche {
+      position: fixed;
+      right: 12px;
+      bottom: calc(12px + env(safe-area-inset-bottom));
+      max-width: min(300px, calc(100vw - 24px));
+      background: var(--voile);
+      border: 1px solid var(--bord);
+      border-radius: 10px;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      font-size: 12px;
+      z-index: 6;
+      overflow: hidden;
+    }
+
+    #fiche summary {
+      padding: 9px 12px;
+      cursor: pointer;
+      list-style: none;
+      font-weight: 600;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--texte-faible);
+    }
+    #fiche summary::-webkit-details-marker { display: none; }
+    #fiche summary::after {
+      content: " ▾";
+      color: var(--texte-faible);
+    }
+    #fiche[open] summary::after { content: " ▴"; }
+
+    #fiche .contenu {
+      padding: 0 12px 10px;
+      border-top: 1px solid var(--bord);
+      padding-top: 9px;
+    }
+
+    #fiche dl {
+      margin: 0;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 4px 12px;
+      align-items: baseline;
+    }
+
+    #fiche dt {
+      color: var(--texte-faible);
+      white-space: nowrap;
+    }
+
+    #fiche dd {
+      margin: 0;
+      text-align: right;
+    }
+
+    #fiche .format {
+      display: block;
+      color: var(--texte-faible);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* --- Aide au déplacement, clavier ------------------------------------ */
+
+    #aide {
+      position: fixed;
+      left: 12px;
+      bottom: calc(12px + env(safe-area-inset-bottom));
+      padding: 8px 12px;
+      background: var(--voile);
+      border: 1px solid var(--bord);
+      border-radius: 10px;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      font-size: 11.5px;
+      line-height: 1.55;
+      color: var(--texte-faible);
+      z-index: 6;
+      transition: opacity 0.5s ease;
+    }
+    #aide strong { color: var(--texte); font-weight: 600; }
+    #aide.efface { opacity: 0; pointer-events: none; }
+
+    /* --- Manette tactile -------------------------------------------------- */
+
+    /* Deux zones : le pouce gauche marche, le pouce droit regarde. C'est la
+       convention de tous les jeux à la première personne sur téléphone, et
+       elle s'apprend sans qu'on l'explique. */
+
+    #manette {
+      position: fixed;
+      left: 16px;
+      bottom: calc(84px + env(safe-area-inset-bottom));
+      width: 128px;
+      height: 128px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid var(--bord);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      touch-action: none;
+      z-index: 7;
+      display: none;
+    }
+
+    #manette .pouce {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 52px;
+      height: 52px;
+      margin: -26px 0 0 -26px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.30);
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      transition: background 0.15s ease;
+    }
+    #manette.tenue .pouce { background: rgba(77, 159, 255, 0.55); }
+
+    /* Sur un appareil tactile, la manette remplace l'aide au clavier. */
+    body.tactile #manette { display: block; }
+    body.tactile #aide { display: none; }
+    body.tactile #fiche { bottom: calc(12px + env(safe-area-inset-bottom)); }
+
+    /* --- Voile de chargement --------------------------------------------- */
+
+    #chargement {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      background: var(--fond);
+      z-index: 20;
+      transition: opacity 0.4s ease;
+      text-align: center;
+      padding: 24px;
+    }
+    #chargement.masque { opacity: 0; pointer-events: none; }
+
+    #chargement .titre {
+      font-size: 14px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--texte-faible);
+    }
+
+    .rotor {
+      width: 30px;
+      height: 30px;
+      border: 2px solid rgba(255, 255, 255, 0.16);
+      border-top-color: #4d9fff;
+      border-radius: 50%;
+      animation: tourner 0.9s linear infinite;
+    }
+    @keyframes tourner { to { transform: rotate(360deg); } }
+
+    @media (prefers-reduced-motion: reduce) {
+      .rotor { animation-duration: 3s; }
+    }
+
+    /* --- Visite indisponible ---------------------------------------------- */
+
+    #indisponible {
+      position: fixed;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 24px;
+      text-align: center;
+      background: var(--fond);
+      z-index: 30;
+    }
+    #indisponible.visible { display: flex; }
+
+    #indisponible .marque {
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--texte-faible);
+      margin-bottom: 6px;
+    }
+    #indisponible h1 {
+      margin: 0;
+      font-size: 19px;
+      font-weight: 600;
+    }
+    #indisponible p {
+      margin: 0;
+      max-width: 30em;
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--texte-faible);
+    }
+
+    #erreur {
+      position: fixed;
+      left: 50%;
+      top: 16px;
+      transform: translateX(-50%);
+      max-width: min(560px, calc(100vw - 24px));
+      display: none;
+      padding: 10px 14px;
+      background: rgba(120, 32, 28, 0.94);
+      border: 1px solid rgba(255, 140, 120, 0.4);
+      border-radius: 8px;
+      font-size: 12px;
+      line-height: 1.5;
+      z-index: 25;
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="renderCanvas" touch-action="none"></canvas>
+
+  <header id="entete">
+    <p class="projet" id="nom-visite"></p>
+    <p class="enseigne">Cash Carrelage Fréjus</p>
+  </header>
+
+  <details id="fiche" open>
+    <summary>Matériaux</summary>
+    <div class="contenu">
+      <dl id="fiche-liste"></dl>
+    </div>
+  </details>
+
+  <div id="aide">
+    <strong>Z Q S D</strong> ou les flèches pour marcher<br>
+    <strong>Clic maintenu</strong> pour regarder autour · <strong>Maj</strong> pour courir
+  </div>
+
+  <div id="manette" aria-hidden="true"><div class="pouce"></div></div>
+
+  <div id="chargement">
+    <div class="rotor"></div>
+    <div class="titre">Préparation de la visite…</div>
+  </div>
+
+  <div id="indisponible">
+    <div class="marque">Cash Carrelage Fréjus</div>
+    <h1>Cette visite n'est plus disponible</h1>
+    <p id="indisponible-detail">
+      Le lien est incomplet ou a été abîmé en chemin. Les liens de visite sont
+      longs : vérifiez qu'il a bien été copié en entier, ou demandez-nous-en
+      un nouveau.
+    </p>
+  </div>
+
+  <div id="erreur"></div>
+
+  <!--
+    Réglages que scene.js va chercher dans la page. Ils n'apparaissent nulle
+    part : c'est la visite qui décide, pas le visiteur.
+
+      murs      — les cloisons de la pièce, montées comme dans l'application
+      grille    — décochée : un quadrillage de chantier n'a rien à faire ici
+      exterieur — le ciel et le terrain, sans quoi les baies donnent sur le vide
+  -->
+  <div hidden>
+    <input type="checkbox" id="murs" checked>
+    <input type="checkbox" id="grille">
+    <input type="checkbox" id="exterieur" checked>
+  </div>
+
+  <script src="https://cdn.babylonjs.com/babylon.js"></script>
+  <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+  <script src="https://cdn.babylonjs.com/materialsLibrary/babylon.skyMaterial.min.js"></script>
+
+  <script>
+    /**
+     * Bouchons des deux fichiers d'édition.
+     *
+     * scene.js appelle Panneau et Traceur2D sans se demander s'ils existent :
+     * ils font partie de l'application. Ici, ils n'ont rien à piloter. Les
+     * remplacer par des fonctions vides est plus sûr que de masquer un
+     * panneau en CSS — le code d'édition n'est pas chargé du tout, il n'y a
+     * donc rien à rouvrir depuis la console.
+     *
+     * Deux exceptions rendent un vrai service :
+     *
+     *   nomTexture     nourrit le métré et la fiche des matériaux ;
+     *   surfaceCourante doit nommer une surface, faute de quoi scene.js
+     *                   chercherait les réglages d'une surface indéfinie.
+     *
+     * Définis avant scene.js : il se lance au DOMContentLoaded et les
+     * installe aussitôt.
+     */
+    (function () {
+      "use strict";
+
+      /* Racine des ressources — catalogue/, textures/, modeles-3d/ — vue
+         depuis cette page. Servie depuis app/, elle est un cran au-dessus.
+         La copie publiée met tout à plat et remplace cette ligne par « ./ » :
+         c'est outils/construire-deploiement.js qui s'en charge.
+
+         Déclarée ici, avant scene.js, parce que c'est lui le premier à s'en
+         servir — il fixe sa configuration au chargement du fichier. */
+      window.BASE_RESSOURCES = "./";
+
+      function rien() {}
+
+      window.Panneau = {
+        installer: rien,
+        brancher: rien,
+        chargerPanneau: rien,
+        majOnglets: rien,
+        majResume: rien,
+        majMetre: rien,
+        majMobilier: rien,
+        majListeFenetres: rien,
+        majBoutonPartager: rien,
+        dessinerPlan: rien,
+        afficherEtatTexture: rien,
+        afficherMetreBrut: rien,
+        viserMur: rien,
+
+        surfaceCourante: function () { return "sol"; },
+
+        nomTexture: function (identifiant) {
+          var fiche = typeof Materiaux !== "undefined"
+            ? Materiaux.parId(identifiant) : null;
+          return fiche ? fiche.nom : identifiant;
+        }
+      };
+
+      /* Le traceur bâtit la maison de démonstration au démarrage. Une visite
+         partagée apporte la sienne : la démo la remplacerait le temps d'un
+         éclair, puis serait balayée. Autant ne jamais la monter. */
+      window.Traceur2D = { installer: rien, demo: rien };
+    })();
+  </script>
+
+  <script src="js/opus-schemas.js"></script>
+  <script src="js/calepinage.js"></script>
+  <script src="js/surfaces.js"></script>
+  <script src="js/eclairage.js"></script>
+  <script src="js/fenetres.js"></script>
+  <script src="js/exterieur.js"></script>
+  <script src="js/plan.js"></script>
+  <script src="js/murs-plan.js"></script>
+  <script src="js/visite.js"></script>
+  <script src="js/materiaux.js"></script>
+  <script src="js/maison.js"></script>
+  <script src="js/partage.js"></script>
+  <script src="js/scene.js"></script>
+
+  <script>
+    /**
+     * Mise en route de la visite.
+     *
+     * L'ordre compte : le catalogue de matériaux d'abord — sans lui les
+     * carreaux resteraient sur leur couleur de repli —, l'état du lien
+     * ensuite, la marche en avant pour finir.
+     */
+    (function () {
+      "use strict";
+
+      var BASE_RESSOURCES = window.BASE_RESSOURCES;
+
+      var voile = document.getElementById("chargement");
+      var indisponible = document.getElementById("indisponible");
+
+      function masquerVoile() {
+        if (!voile) return;
+        voile.classList.add("masque");
+        setTimeout(function () { voile.style.display = "none"; }, 400);
+      }
+
+      /** La visite ne peut pas être montrée : on le dit, et on s'arrête là. */
+      function renoncer(detail) {
+        var texte = document.getElementById("indisponible-detail");
+        if (detail && texte) texte.textContent = detail;
+
+        if (voile) voile.style.display = "none";
+        if (indisponible) indisponible.classList.add("visible");
+
+        ["entete", "fiche", "aide", "manette"].forEach(function (id) {
+          var element = document.getElementById(id);
+          if (element) element.style.display = "none";
+        });
+      }
+
+      function afficherErreur(message) {
+        var boite = document.getElementById("erreur");
+        if (!boite) return;
+        boite.textContent = message;
+        boite.style.display = "block";
+      }
+
+      // --- Fiche des matériaux ---------------------------------------------
+
+      /** Nom commercial d'un matériau, ou la couleur posée à défaut. */
+      function nomMateriau(reglages) {
+        if (reglages.mode !== "carrele") {
+          return "Peinture " + String(reglages.couleur).toUpperCase();
+        }
+        if (!reglages.texture) {
+          return "Teinte " + String(reglages.couleur).toUpperCase();
+        }
+
+        var fiche = Materiaux.parId(reglages.texture);
+        return fiche ? fiche.nom : reglages.texture;
+      }
+
+      /**
+       * Format posé, tel qu'il se lit sur un devis.
+       *
+       * Un matériau débité en opus n'a pas un format mais un module : c'est
+       * son nom qu'il faut lire, pas les cotes du panneau, qui ne veulent
+       * alors plus rien dire.
+       */
+      function formatPose(reglages) {
+        if (reglages.mode !== "carrele") return "";
+
+        if (reglages.poseOpus && reglages.texture) {
+          var schema = Materiaux.schemaPose(reglages.texture);
+          if (schema && schema.nom) return schema.nom;
+        }
+
+        return Surfaces.format(reglages);
+      }
+
+      /**
+       * Remplit la fiche.
+       *
+       * Quand le projet vient d'un plan, ce sont les murs de la maison qui
+       * sont habillés — les quatre parois de la pièce rectangulaire ne sont
+       * plus montées. La fiche suit : elle nomme ce que le client voit, pas
+       * ce que le modèle porte encore.
+       */
+      function remplirFiche(etat) {
+        var liste = document.getElementById("fiche-liste");
+        var fiche = document.getElementById("fiche");
+        if (!liste) return;
+
+        var lignes = [];
+
+        var sol = etat.surfaces.filter(function (s) { return s.id === "sol"; })[0];
+        if (sol) lignes.push({ titre: "Sol", reglages: sol });
+
+        if (etat.maison && etat.habillage) {
+          lignes.push({ titre: "Murs", reglages: etat.habillage.global });
+
+          var exceptions = Object.keys(etat.habillage.parMur);
+          exceptions.forEach(function (index, rang) {
+            lignes.push({
+              titre: "Mur " + (rang + 1),
+              reglages: etat.habillage.parMur[index]
+            });
+          });
+        } else {
+          etat.surfaces.forEach(function (surface) {
+            if (surface.type === "mur") {
+              lignes.push({ titre: surface.court, reglages: surface });
+            }
+          });
+        }
+
+        liste.textContent = "";
+
+        lignes.forEach(function (ligne) {
+          var dt = document.createElement("dt");
+          dt.textContent = ligne.titre;
+
+          var dd = document.createElement("dd");
+          dd.textContent = nomMateriau(ligne.reglages);
+
+          var format = formatPose(ligne.reglages);
+          if (format) {
+            var petit = document.createElement("span");
+            petit.className = "format";
+            petit.textContent = format;
+            dd.appendChild(petit);
+          }
+
+          liste.appendChild(dt);
+          liste.appendChild(dd);
+        });
+
+        // Repliée d'emblée sur un petit écran : la vue prime sur le devis.
+        if (fiche && window.innerWidth < 560) fiche.open = false;
+      }
+
+      // --- Manette tactile ---------------------------------------------------
+
+      /**
+       * Joystick virtuel : le pouce gauche marche.
+       *
+       * Il ne simule pas des touches. Il donne une direction, que l'on
+       * applique image par image avec `moveWithCollisions` — la même
+       * mécanique que le clavier de Babylon, murs compris. Simuler des
+       * appuis clavier aurait buté sur le sien : la visite coupe le clavier
+       * de la caméra dès qu'on regarde autour de soi.
+       */
+      function brancherManette(camera) {
+        var socle = document.getElementById("manette");
+        if (!socle) return;
+
+        var pouce = socle.querySelector(".pouce");
+        var rayonMax = 46;          // px, course du pouce
+        var direction = { avant: 0, cote: 0 };
+        var doigt = null;
+
+        function placer(dx, dy) {
+          pouce.style.transform = "translate(" + dx + "px, " + dy + "px)";
+        }
+
+        function relacher() {
+          doigt = null;
+          direction.avant = 0;
+          direction.cote = 0;
+          socle.classList.remove("tenue");
+          placer(0, 0);
+        }
+
+        socle.addEventListener("pointerdown", function (evenement) {
+          doigt = evenement.pointerId;
+          socle.setPointerCapture(doigt);
+          socle.classList.add("tenue");
+          evenement.preventDefault();
+        });
+
+        socle.addEventListener("pointermove", function (evenement) {
+          if (evenement.pointerId !== doigt) return;
+
+          var boite = socle.getBoundingClientRect();
+          var dx = evenement.clientX - (boite.left + boite.width / 2);
+          var dy = evenement.clientY - (boite.top + boite.height / 2);
+
+          var distance = Math.sqrt(dx * dx + dy * dy);
+          if (distance > rayonMax) {
+            dx = dx * rayonMax / distance;
+            dy = dy * rayonMax / distance;
+          }
+
+          placer(dx, dy);
+
+          // Vers le haut de l'écran, c'est vers l'avant.
+          direction.cote = dx / rayonMax;
+          direction.avant = -dy / rayonMax;
+          evenement.preventDefault();
+        });
+
+        ["pointerup", "pointercancel", "pointerleave"].forEach(function (nom) {
+          socle.addEventListener(nom, function (evenement) {
+            if (evenement.pointerId === doigt) relacher();
+          });
+        });
+
+        /* Le déplacement, image après image. La vitesse est celle de la
+           visite au clavier : marcher au doigt ou à la touche doit donner
+           la même promenade. */
+        var scene = camera.getScene();
+        scene.onBeforeRenderObservable.add(function () {
+          if (!direction.avant && !direction.cote) return;
+
+          var secondes = scene.getEngine().getDeltaTime() / 1000;
+          var pas = Visite.VITESSE_MS * Math.min(secondes, 0.1);
+
+          var lacet = camera.rotation.y;
+          var avantX = Math.sin(lacet), avantZ = Math.cos(lacet);
+
+          var deplacement = new BABYLON.Vector3(
+            (avantX * direction.avant + avantZ * direction.cote) * pas,
+            0,
+            (avantZ * direction.avant - avantX * direction.cote) * pas
+          );
+
+          camera.moveWithCollisions(deplacement);
+        });
+      }
+
+      // --- Mise en route ------------------------------------------------------
+
+      /** Le moteur est prêt quand scene.js a publié son interface. */
+      function attendreMoteur() {
+        return new Promise(function (resoudre, rejeter) {
+          var essais = 0;
+
+          (function reessayer() {
+            if (window.Moteur && window.Moteur.scene) return resoudre(window.Moteur);
+            if (++essais > 200) return rejeter(new Error("moteur 3D absent"));
+            setTimeout(reessayer, 50);
+          })();
+        });
+      }
+
+      /**
+       * Entre en visite.
+       *
+       * Le point de départ vient du lien quand le vendeur en a figé un —
+       * il partage alors ce qu'il regardait. Sinon on ouvre la visite au
+       * cœur de la plus grande pièce du rez-de-chaussée : on entre de
+       * plain-pied, jamais par un étage.
+       */
+      function entrerEnVisite(moteur, etat) {
+        var maison = etat.maison;
+        var depart = etat.camera ? etat.camera.depart : null;
+
+        if (!depart && maison) {
+          var rdc = {
+            pieces: (maison.pieces || []).filter(function (piece) {
+              return !(piece.altitude > 0);
+            })
+          };
+          depart = Visite.departConseille(rdc.pieces.length ? rdc : maison);
+        }
+
+        if (!depart) depart = [0, 0];
+
+        var regard = null;
+        if (etat.camera && etat.camera.rotation) {
+          var lacet = etat.camera.rotation[1];
+          regard = [depart[0] + Math.sin(lacet), depart[1] + Math.cos(lacet)];
+        }
+
+        var lance = Visite.demarrer({
+          scene: moteur.scene,
+          canvas: document.getElementById("renderCanvas"),
+          depart: depart,
+          regard: regard,
+          /* Pas de caméra à restaurer, et rien à faire en sortant : on ne
+             sort pas d'une visite qui est toute la page. */
+          cameraPrecedente: null,
+          surQuitter: null
+        });
+
+        if (!lance) return false;
+
+        var camera = Visite.camera();
+
+        // L'inclinaison du regard ne se transmet pas par un point visé.
+        if (camera && etat.camera && etat.camera.rotation) {
+          camera.rotation.x = etat.camera.rotation[0];
+        }
+
+        if (camera) brancherManette(camera);
+        return true;
+      }
+
+      /* Un appareil tactile montre la manette et range l'aide au clavier.
+         Le test porte sur le premier contact plutôt que sur les capacités
+         déclarées : un portable à écran tactile garde son clavier, et son
+         propriétaire s'en sert. */
+      window.addEventListener("touchstart", function marquer() {
+        document.body.classList.add("tactile");
+        window.removeEventListener("touchstart", marquer);
+      }, { once: true, passive: true });
+
+      // L'aide au clavier s'efface d'elle-même : on l'a lue, elle a fait
+      // son office, et la vue vaut mieux qu'un mode d'emploi.
+      setTimeout(function () {
+        var aide = document.getElementById("aide");
+        if (aide) aide.classList.add("efface");
+      }, 12000);
+
+      function demarrer() {
+        if (typeof BABYLON === "undefined") {
+          renoncer("Le moteur 3D n'a pas pu être chargé. Vérifiez votre " +
+                   "connexion, puis rechargez la page.");
+          return;
+        }
+
+        var etat = Partage.deserialiser(window.location.hash);
+
+        if (!etat.valide) {
+          renoncer();
+          return;
+        }
+
+        var nom = document.getElementById("nom-visite");
+        if (nom) {
+          nom.textContent = etat.nom || "Visite immersive";
+          document.title = (etat.nom ? etat.nom + " — " : "Visite immersive — ") +
+            "Cash Carrelage Fréjus";
+        }
+
+        attendreMoteur()
+          .then(function (moteur) {
+            // Le catalogue avant tout : appliquer un revêtement sans lui
+            // poserait une couleur unie à la place du carrelage.
+            return Materiaux.charger(BASE_RESSOURCES).then(function (resultat) {
+              if (resultat.erreur) afficherErreur(resultat.erreur);
+              return moteur;
+            });
+          })
+          .then(function (moteur) {
+            Partage.appliquer(etat);
+            remplirFiche(etat);
+
+            /* La scène a des textures à décoder et des modèles à charger :
+               on entre en visite quand elle est prête, pas avant, sinon le
+               client fait ses premiers pas dans une maison grise. */
+            moteur.scene.executeWhenReady(function () {
+              entrerEnVisite(moteur, etat);
+              masquerVoile();
+            });
+
+            // Filet : une carte qui ne se résout jamais ne doit pas retenir
+            // le visiteur devant un voile immobile.
+            setTimeout(function () {
+              if (!Visite.active()) entrerEnVisite(moteur, etat);
+              masquerVoile();
+            }, 12000);
+          })
+          .catch(function (e) {
+            renoncer("La visite n'a pas pu être préparée (" + e.message + ").");
+          });
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", demarrer);
+      } else {
+        demarrer();
+      }
+    })();
+  </script>
+</body>
+</html>

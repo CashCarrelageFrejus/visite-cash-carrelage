@@ -1,0 +1,279 @@
+{
+  "commentaire": "Copie publiée, produite par outils/construire-deploiement.js. Les cartes sont les JPEG allégés ; les PNG d'origine restent dans textures/, hors ligne.",
+  "genere": "2026-08-22T21:28:21.625Z",
+  "materiaux": [
+    {
+      "nom": "Béton ciré gris",
+      "origine": "démonstration procédurale",
+      "id": "beton-cire-gris",
+      "cartes": {
+        "albedo": "textures/beton-cire-gris/albedo.jpg",
+        "normal": "textures/beton-cire-gris/normal.jpg",
+        "orm": "textures/beton-cire-gris/orm.jpg"
+      }
+    },
+    {
+      "nom": "Halley Argent",
+      "serie": "halley",
+      "marque": "Prissmacer",
+      "coloris": "argent",
+      "format_recommande": "100x100",
+      "rotation_aleatoire": true,
+      "origine": "scans fabricant Prissmacer (photo réelle produit) — 2026-08-22",
+      "id": "halley_argent",
+      "cartes": {
+        "albedo": "textures/halley_argent_albedo.jpg",
+        "normal": "textures/halley_argent_normal.jpg",
+        "orm": "textures/halley_argent_orm.jpg"
+      },
+      "tampons": [
+        "textures/halley_argent_albedo.jpg",
+        "textures/halley_argent_albedo_1.jpg",
+        "textures/halley_argent_albedo_2.jpg",
+        "textures/halley_argent_albedo_3.jpg"
+      ]
+    },
+    {
+      "nom": "Halley Light",
+      "serie": "halley",
+      "marque": "Prissmacer",
+      "coloris": "light",
+      "format_recommande": "100x100",
+      "rotation_aleatoire": true,
+      "origine": "scans fabricant Prissmacer (photo réelle produit) — 2026-08-22",
+      "id": "halley_light",
+      "cartes": {
+        "albedo": "textures/halley_light_albedo.jpg",
+        "normal": "textures/halley_light_normal.jpg",
+        "orm": "textures/halley_light_orm.jpg"
+      },
+      "tampons": [
+        "textures/halley_light_albedo.jpg",
+        "textures/halley_light_albedo_1.jpg",
+        "textures/halley_light_albedo_2.jpg",
+        "textures/halley_light_albedo_3.jpg"
+      ]
+    },
+    {
+      "nom": "Halley Mud",
+      "serie": "halley",
+      "marque": "Prissmacer",
+      "coloris": "mud",
+      "format_recommande": "100x100",
+      "rotation_aleatoire": true,
+      "origine": "scans fabricant Prissmacer (photo réelle produit) — 2026-08-22",
+      "id": "halley_mud",
+      "cartes": {
+        "albedo": "textures/halley_mud_albedo.jpg",
+        "normal": "textures/halley_mud_normal.jpg",
+        "orm": "textures/halley_mud_orm.jpg"
+      },
+      "tampons": [
+        "textures/halley_mud_albedo.jpg",
+        "textures/halley_mud_albedo_1.jpg",
+        "textures/halley_mud_albedo_2.jpg",
+        "textures/halley_mud_albedo_3.jpg"
+      ]
+    },
+    {
+      "nom": "Halley Silver",
+      "serie": "halley",
+      "marque": "Prissmacer",
+      "coloris": "silver",
+      "format_recommande": "100x100",
+      "rotation_aleatoire": true,
+      "origine": "scans fabricant Prissmacer (photo réelle produit) — 2026-08-22",
+      "id": "halley_silver",
+      "cartes": {
+        "albedo": "textures/halley_silver_albedo.jpg",
+        "normal": "textures/halley_silver_normal.jpg",
+        "orm": "textures/halley_silver_orm.jpg"
+      },
+      "tampons": [
+        "textures/halley_silver_albedo.jpg",
+        "textures/halley_silver_albedo_1.jpg",
+        "textures/halley_silver_albedo_2.jpg",
+        "textures/halley_silver_albedo_3.jpg"
+      ]
+    },
+    {
+      "nom": "Halley Taupe",
+      "serie": "halley",
+      "marque": "Prissmacer",
+      "coloris": "taupe",
+      "format_recommande": "100x100",
+      "rotation_aleatoire": true,
+      "origine": "photo réelle iPhone 17 — IMG_0990 — 2026-08-17",
+      "id": "halley_taupe",
+      "cartes": {
+        "albedo": "textures/halley_taupe_albedo.jpg",
+        "normal": "textures/halley_taupe_normal.jpg",
+        "orm": "textures/halley_taupe_orm.jpg"
+      },
+      "tampons": [
+        "textures/halley_taupe_albedo.jpg",
+        "textures/halley_taupe_albedo_1.jpg",
+        "textures/halley_taupe_albedo_2.jpg",
+        "textures/halley_taupe_albedo_3.jpg"
+      ]
+    },
+    {
+      "nom": "Halley White",
+      "serie": "halley",
+      "marque": "Prissmacer",
+      "coloris": "white",
+      "format_recommande": "100x100",
+      "rotation_aleatoire": true,
+      "origine": "scans fabricant Prissmacer (photo réelle produit) — 2026-08-22",
+      "id": "halley_white",
+      "cartes": {
+        "albedo": "textures/halley_white_albedo.jpg",
+        "normal": "textures/halley_white_normal.jpg",
+        "orm": "textures/halley_white_orm.jpg"
+      },
+      "tampons": [
+        "textures/halley_white_albedo.jpg",
+        "textures/halley_white_albedo_1.jpg",
+        "textures/halley_white_albedo_2.jpg",
+        "textures/halley_white_albedo_3.jpg"
+      ]
+    },
+    {
+      "nom": "Isea Pearl",
+      "serie": "isea",
+      "marque": "Prissmacer",
+      "coloris": "pearl",
+      "format_recommande": "100x100",
+      "rotation_aleatoire": true,
+      "origine": "photo réelle iPhone — magasin — 2026-08-22",
+      "id": "isea_pearl",
+      "cartes": {
+        "albedo": "textures/isea_pearl_albedo.jpg",
+        "normal": "textures/isea_pearl_normal.jpg",
+        "orm": "textures/isea_pearl_orm.jpg"
+      },
+      "tampons": [
+        "textures/isea_pearl_albedo.jpg",
+        "textures/isea_pearl_albedo_1.jpg",
+        "textures/isea_pearl_albedo_2.jpg",
+        "textures/isea_pearl_albedo_3.jpg"
+      ]
+    },
+    {
+      "nom": "Isea Sand",
+      "serie": "isea",
+      "marque": "Prissmacer",
+      "coloris": "sand",
+      "format_recommande": "100x100",
+      "rotation_aleatoire": true,
+      "origine": "photo réelle iPhone — magasin — 2026-08-22",
+      "id": "isea_sand",
+      "cartes": {
+        "albedo": "textures/isea_sand_albedo.jpg",
+        "normal": "textures/isea_sand_normal.jpg",
+        "orm": "textures/isea_sand_orm.jpg"
+      },
+      "tampons": [
+        "textures/isea_sand_albedo.jpg",
+        "textures/isea_sand_albedo_1.jpg",
+        "textures/isea_sand_albedo_2.jpg",
+        "textures/isea_sand_albedo_3.jpg"
+      ]
+    },
+    {
+      "nom": "Isea White",
+      "serie": "isea",
+      "marque": "Prissmacer",
+      "coloris": "white",
+      "format_recommande": "100x100",
+      "rotation_aleatoire": true,
+      "origine": "photo réelle iPhone — magasin — 2026-08-22",
+      "id": "isea_white",
+      "cartes": {
+        "albedo": "textures/isea_white_albedo.jpg",
+        "normal": "textures/isea_white_normal.jpg",
+        "orm": "textures/isea_white_orm.jpg"
+      },
+      "tampons": [
+        "textures/isea_white_albedo.jpg",
+        "textures/isea_white_albedo_1.jpg",
+        "textures/isea_white_albedo_2.jpg",
+        "textures/isea_white_albedo_3.jpg"
+      ]
+    },
+    {
+      "nom": "Marbre Calacatta",
+      "origine": "démonstration procédurale",
+      "id": "marbre-calacatta",
+      "cartes": {
+        "albedo": "textures/marbre-calacatta/albedo.jpg",
+        "normal": "textures/marbre-calacatta/normal.jpg",
+        "orm": "textures/marbre-calacatta/orm.jpg"
+      }
+    },
+    {
+      "nom": "Terre cuite",
+      "origine": "démonstration procédurale",
+      "id": "terre-cuite",
+      "cartes": {
+        "albedo": "textures/terre-cuite/albedo.jpg",
+        "normal": "textures/terre-cuite/normal.jpg",
+        "orm": "textures/terre-cuite/orm.jpg"
+      }
+    },
+    {
+      "nom": "Travertin 1er Choix",
+      "serie": "travertin",
+      "marque": "Travertin naturel",
+      "format_recommande": "40x60",
+      "formats_opus": [
+        "40x60",
+        "40x40",
+        "20x40",
+        "20x20"
+      ],
+      "schema_pose": "opus_romain_4",
+      "rotation_aleatoire": false,
+      "origine": "photo réelle iPhone — a4b41ef3 — 2026-08-22",
+      "id": "travertin_1er_choix",
+      "cartes": {
+        "albedo": "textures/travertin_1er_choix_albedo.jpg",
+        "normal": "textures/travertin_1er_choix_normal.jpg",
+        "orm": "textures/travertin_1er_choix_orm.jpg"
+      },
+      "tampons": [
+        "textures/travertin_1er_choix_albedo.jpg",
+        "textures/travertin_1er_choix_albedo_1.jpg",
+        "textures/travertin_1er_choix_albedo_2.jpg",
+        "textures/travertin_1er_choix_albedo_3.jpg"
+      ]
+    },
+    {
+      "nom": "Travertin 2ème Choix",
+      "serie": "travertin",
+      "marque": "Travertin naturel",
+      "format_recommande": "40x60",
+      "formats_opus": [
+        "40x60",
+        "40x40",
+        "20x40",
+        "20x20"
+      ],
+      "schema_pose": "opus_romain_4",
+      "rotation_aleatoire": false,
+      "origine": "photo réelle iPhone — a3c9df31 — 2026-08-22",
+      "id": "travertin_2eme_choix",
+      "cartes": {
+        "albedo": "textures/travertin_2eme_choix_albedo.jpg",
+        "normal": "textures/travertin_2eme_choix_normal.jpg",
+        "orm": "textures/travertin_2eme_choix_orm.jpg"
+      },
+      "tampons": [
+        "textures/travertin_2eme_choix_albedo.jpg",
+        "textures/travertin_2eme_choix_albedo_1.jpg",
+        "textures/travertin_2eme_choix_albedo_2.jpg",
+        "textures/travertin_2eme_choix_albedo_3.jpg"
+      ]
+    }
+  ]
+}
