@@ -131,14 +131,83 @@
     return true;
   }
 
+  /* Deux sommets plus proches que cela sont tenus pour confondus. Un contour
+     de sol s'exprime en mètres : le dixième de millimètre est très en deçà de
+     ce qu'un plan sait dire, et très au-delà du bruit de virgule flottante. */
+  var SOMMET_CONFONDU = 1e-4;
+
+  /**
+   * Retire un sommet qui ne porte pas d'aire : doublon, ou point aligné entre
+   * ses deux voisins. Rend vrai s'il y en avait un.
+   *
+   * Ces sommets sont inoffensifs pour la forme et fatals pour le découpage en
+   * oreilles : posés sur l'arête que l'oreille voudrait fermer, ils
+   * l'interdisent, et le contour se retrouve sans aucune oreille valide.
+   */
+  function _retirerSommetDegenere(pts) {
+    var n = pts.length;
+
+    for (var i = 0; i < n; i++) {
+      var a = pts[(i - 1 + n) % n], b = pts[i], c = pts[(i + 1) % n];
+
+      var confondu = Math.abs(b.x - c.x) < SOMMET_CONFONDU &&
+                     Math.abs(b.y - c.y) < SOMMET_CONFONDU;
+
+      var croix = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+      var aligne = Math.abs(croix) < SOMMET_CONFONDU * SOMMET_CONFONDU;
+
+      if (confondu || aligne) {
+        pts.splice(i, 1);
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Dernier recours : couper au sommet le plus franchement convexe.
+   *
+   * N'est atteint que par un contour qui se recoupe lui-même — ce qu'aucun
+   * sol ne devrait être. Le seul objectif est alors de terminer en couvrant
+   * la surface, quitte à mordre un peu : un carrelage qui dépasse d'un
+   * centimètre se corrige à l'œil, un sol troué ne se voit qu'une fois le
+   * lien envoyé au client.
+   */
+  function _couperSommetLeMoinsMauvais(pts, triangles, ccw) {
+    var n = pts.length;
+    var meilleur = -1, meilleureCroix = 0;
+
+    for (var i = 0; i < n; i++) {
+      var a = pts[(i - 1 + n) % n], b = pts[i], c = pts[(i + 1) % n];
+      var croix = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+      var oriente = ccw ? croix : -croix;
+
+      if (meilleur === -1 || oriente > meilleureCroix) {
+        meilleur = i;
+        meilleureCroix = oriente;
+      }
+    }
+
+    if (meilleur === -1) return;
+
+    triangles.push([
+      { x: pts[(meilleur - 1 + n) % n].x, y: pts[(meilleur - 1 + n) % n].y },
+      { x: pts[meilleur].x,               y: pts[meilleur].y               },
+      { x: pts[(meilleur + 1) % n].x,     y: pts[(meilleur + 1) % n].y     }
+    ]);
+    pts.splice(meilleur, 1);
+  }
+
   /**
    * Triangule un polygone simple par ear-clipping.
    *
    * @param {Array<{x, y}>} sommets  Sommets dans un sens quelconque.
    * @returns {Array<Array<{x, y}>>} Liste de triangles [a, b, c].
    *
-   * Fonctionne sur les polygones convexes et non convexes.
-   * Dégénérescences (côtés nuls, auto-intersections) : résultat partiel.
+   * Fonctionne sur les polygones convexes et non convexes. Les
+   * dégénérescences courantes d'un relevé — sommets confondus, sommets
+   * alignés — sont absorbées : la surface reste entièrement couverte.
    */
   function triangulation(sommets) {
     if (!sommets || sommets.length < 3) return [];
@@ -176,7 +245,27 @@
         }
       }
 
-      if (!trouve) break; // polygone dégénéré — s'arrêter proprement
+      if (trouve) continue;
+
+      /* Aucune oreille : le contour porte une dégénérescence — deux sommets
+         confondus, ou un sommet posé sur l'arête qu'on voudrait couper. Un
+         relevé de plan en produit régulièrement.
+
+         S'arrêter ici, ce que faisait ce code, rendait une triangulation
+         partielle sans rien dire. Le sol se bâtissait alors sur un morceau du
+         contour et le carrelage s'arrêtait au milieu de la maison — d'autant
+         plus loin du bord que la dégénérescence tombait tôt.
+
+         On retire donc le sommet fautif et on repart. Il ne porte aucune
+         aire : le contour qui reste décrit la même surface, à ceci près
+         qu'il est de nouveau triangulable. */
+      var retire = _retirerSommetDegenere(pts);
+
+      /* Rien à retirer : le contour se recoupe lui-même, et aucun découpage
+         en oreilles n'en viendra à bout. On coupe au sommet le moins mauvais
+         — le plus convexe — pour avancer coûte que coûte. Le résultat peut
+         déborder légèrement, ce qui vaut mieux qu'un sol troué. */
+      if (!retire) _couperSommetLeMoinsMauvais(pts, triangles, ccw);
     }
 
     if (pts.length === 3) {
@@ -271,9 +360,29 @@
     return morceau;
   }
 
-  /** Triangles d'un contour [[x, z], …], prêts pour `decouperSurContour`. */
+  /**
+   * Triangles d'un sol, prêts pour `decouperSurContour`.
+   *
+   * Accepte un contour `[[x, z], …]` ou une liste de contours. Un sol relevé
+   * sur un plan n'est pas toujours d'un seul tenant : les cloisons séparent
+   * les pièces dans la grille d'analyse, et une aile peut se retrouver
+   * détachée du corps de logis. Les triangles de tous les blocs se mêlent
+   * sans dommage — la découpe teste chaque carreau contre chacun, et un
+   * carreau ne tombe que dans un seul.
+   */
   function trianglesDeContour(contour) {
-    if (!contour || contour.length < 3) return [];
+    if (!contour || !contour.length) return [];
+
+    // Liste de contours : le premier élément est lui-même une liste de points.
+    if (Array.isArray(contour[0]) && Array.isArray(contour[0][0])) {
+      var tous = [];
+      contour.forEach(function (un) {
+        trianglesDeContour(un).forEach(function (tri) { tous.push(tri); });
+      });
+      return tous;
+    }
+
+    if (contour.length < 3) return [];
 
     return triangulation(contour.map(function (p) {
       return { x: p[0], y: p[1] };

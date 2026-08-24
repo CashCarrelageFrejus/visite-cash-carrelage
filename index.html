@@ -657,24 +657,35 @@
 
         /* Le déplacement, image après image. La vitesse est celle de la
            visite au clavier : marcher au doigt ou à la touche doit donner
-           la même promenade. */
+           la même promenade.
+
+           On pousse `cameraDirection` plutôt que de déplacer la caméra :
+           c'est la voie que Babylon prévoit pour une caméra libre, et la
+           seule qui passe par les collisions. `moveWithCollisions` appartient
+           aux maillages, pas aux caméras — l'appeler ici jetait une exception
+           à chaque image, que la boucle de rendu avalait sans rien dire. Le
+           pouce bougeait, le visiteur restait sur place.
+
+           Babylon applique `cameraDirection` puis la freine de son inertie.
+           Ce qu'on y verse doit donc en tenir compte : sans le facteur, la
+           marche au doigt serait deux fois et demie plus rapide qu'au
+           clavier. */
         var scene = camera.getScene();
         scene.onBeforeRenderObservable.add(function () {
           if (!direction.avant && !direction.cote) return;
 
           var secondes = scene.getEngine().getDeltaTime() / 1000;
-          var pas = Visite.VITESSE_MS * Math.min(secondes, 0.1);
+          var frein = 1 - (camera.inertia || 0);
+          var pas = Visite.VITESSE_MS * Math.min(secondes, 0.1) * frein;
 
           var lacet = camera.rotation.y;
           var avantX = Math.sin(lacet), avantZ = Math.cos(lacet);
 
-          var deplacement = new BABYLON.Vector3(
+          camera.cameraDirection.addInPlace(new BABYLON.Vector3(
             (avantX * direction.avant + avantZ * direction.cote) * pas,
             0,
             (avantZ * direction.avant - avantX * direction.cote) * pas
-          );
-
-          camera.moveWithCollisions(deplacement);
+          ));
         });
       }
 
@@ -746,12 +757,35 @@
         return true;
       }
 
-      /* Un appareil tactile montre la manette et range l'aide au clavier.
-         Le test porte sur le premier contact plutôt que sur les capacités
-         déclarées : un portable à écran tactile garde son clavier, et son
-         propriétaire s'en sert. */
-      window.addEventListener("touchstart", function marquer() {
+      /**
+       * Un appareil tactile montre la manette et range l'aide au clavier.
+       *
+       * Deux signaux, parce qu'aucun ne suffit seul.
+       *
+       * Le premier est déclaré : un écran tactile, et un pointeur grossier —
+       * un doigt, pas une souris. Il vaut d'emblée, avant même que le
+       * visiteur ait touché l'écran, et c'est tout l'intérêt : sur un
+       * téléphone, la manette doit être là quand la visite s'ouvre, pas
+       * apparaître après un geste que rien n'invitait à faire.
+       *
+       * Le second est observé : le premier contact. Il rattrape les appareils
+       * qui se déclarent mal, et surtout il préserve le portable à écran
+       * tactile — `pointer: coarse` y est faux, son propriétaire garde donc
+       * son clavier et son aide, jusqu'au jour où il pose le doigt dessus.
+       */
+      function marquerTactile() {
         document.body.classList.add("tactile");
+      }
+
+      var pointeurGrossier = window.matchMedia &&
+        window.matchMedia("(pointer: coarse)").matches;
+
+      if (navigator.maxTouchPoints > 0 && pointeurGrossier) {
+        marquerTactile();
+      }
+
+      window.addEventListener("touchstart", function marquer() {
+        marquerTactile();
         window.removeEventListener("touchstart", marquer);
       }, { once: true, passive: true });
 

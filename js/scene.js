@@ -305,12 +305,19 @@
   };
 
   /**
-   * Polygone importé depuis le plan de masse, ou null (pièce rectangulaire).
-   * Format : [[x, z], …] en mètres, centré sur l'origine.
+   * Contours du sol importés depuis le plan de masse, ou null (pièce
+   * rectangulaire).
+   *
+   * Format : [[[x, z], …], …] en mètres — une liste de contours, et non un
+   * seul. Un relevé donne rarement un bloc unique : les polygones de pièces
+   * sont séparés par l'épaisseur des cloisons, et une aile peut se détacher
+   * du corps de logis. Tant que ce champ n'a porté qu'un contour, tout ce
+   * qui tombait hors du bloc principal restait sans carrelage.
+   *
    * Quand il est défini, le sol prend cette forme ; les murs restent
    * rectangulaires sur la boîte englobante (évolution future possible).
    */
-  var polygonePiece = null;
+  var contoursPiece = null;
 
   /**
    * Maison reconstruite depuis un plan analysé, ou null.
@@ -696,18 +703,25 @@
    * lui, est là où les murs le placent, et depuis que le tracé lui donne sa
    * forme il n'a aucune raison de tomber sur l'origine.
    */
-  function centreEmprise(contour) {
-    if (!contour || contour.length < 3) return [0, 0];
+  function centreEmprise(contours) {
+    if (!contours || !contours.length) return [0, 0];
 
     var xMin = Infinity, xMax = -Infinity;
     var zMin = Infinity, zMax = -Infinity;
+    var points = 0;
 
-    contour.forEach(function (p) {
-      if (p[0] < xMin) xMin = p[0];
-      if (p[0] > xMax) xMax = p[0];
-      if (p[1] < zMin) zMin = p[1];
-      if (p[1] > zMax) zMax = p[1];
+    contours.forEach(function (contour) {
+      if (!contour || contour.length < 3) return;
+      contour.forEach(function (p) {
+        if (p[0] < xMin) xMin = p[0];
+        if (p[0] > xMax) xMax = p[0];
+        if (p[1] < zMin) zMin = p[1];
+        if (p[1] > zMax) zMax = p[1];
+        points++;
+      });
     });
+
+    if (!points) return [0, 0];
 
     return [(xMin + xMax) / 2, (zMin + zMax) / 2];
   }
@@ -734,9 +748,19 @@
    * celle de la trame de calepinage : le fond et les carreaux qui le
    * couvrent restent en phase.
    */
-  function creerFondPolygone(pts, surface) {
-    var pts2d = pts.map(function (p) { return { x: p[0], y: p[1] }; });
-    var triangles = Plan.triangulation(pts2d);
+  function creerFondPolygone(contours, surface) {
+    // Un contour seul reste accepté : maison.js pose ses dalles d'étage ainsi.
+    var liste = (contours && Array.isArray(contours[0]) && Array.isArray(contours[0][0]))
+      ? contours
+      : [contours];
+
+    var triangles = [];
+    liste.forEach(function (pts) {
+      if (!pts || pts.length < 3) return;
+      Plan.triangulation(pts.map(function (p) { return { x: p[0], y: p[1] }; }))
+        .forEach(function (tri) { triangles.push(tri); });
+    });
+
     if (!triangles.length) return null;
 
     var positions = [], normales = [], uvs = [], indices = [];
@@ -800,16 +824,16 @@
          passer par le même chemin garantit qu'il porte la même trame d'UV.
          Deux constructions séparées finiraient par diverger, et le sol
          changerait d'aspect selon qu'un plan est chargé ou non. */
-      var contourSol = (polygonePiece && polygonePiece.length >= 3)
-        ? polygonePiece
-        : [
+      var contoursSol = (contoursPiece && contoursPiece.length)
+        ? contoursPiece
+        : [[
             [-dims.longueur / 2, -dims.largeur / 2],
             [ dims.longueur / 2, -dims.largeur / 2],
             [ dims.longueur / 2,  dims.largeur / 2],
             [-dims.longueur / 2,  dims.largeur / 2]
-          ];
+          ]];
 
-      maillage = creerFondPolygone(contourSol, surface);
+      maillage = creerFondPolygone(contoursSol, surface);
       if (!maillage) return;
 
       rendu.repere = null;
@@ -861,7 +885,7 @@
          l'origine du monde. Sans ce décalage, la trame et le contour ne se
          recouvrent que par leur intersection : partout ailleurs le fond de
          joint affleure, et le sol paraît gris par plaques. */
-      var centre = centreEmprise(polygonePiece);
+      var centre = centreEmprise(contoursPiece);
 
       projeter = function (u, v) {
         return [u + centre[0], CONFIG.carreau.hauteur, v + centre[1]];
@@ -876,13 +900,15 @@
 
          Les triangles se calculent une fois pour toute la surface : le
          contour ne bouge pas d'un carreau à l'autre. */
-      if (polygonePiece && polygonePiece.length >= 3) {
+      if (contoursPiece && contoursPiece.length) {
         /* Les carreaux à découper sont exprimés dans le plan de calepinage :
-           c'est le contour qui y descend, une fois, plutôt que chaque
+           ce sont les contours qui y descendent, une fois, plutôt que chaque
            carreau qui en remonte. */
         var trianglesSol = Plan.trianglesDeContour(
-          polygonePiece.map(function (p) {
-            return [p[0] - centre[0], p[1] - centre[1]];
+          contoursPiece.map(function (contour) {
+            return contour.map(function (p) {
+              return [p[0] - centre[0], p[1] - centre[1]];
+            });
           })
         );
 
@@ -3273,7 +3299,27 @@
       definirMaison: function (donnees, options) {
         definirMaison(donnees, options);
       },
-      definirPolygone: function (contour) { polygonePiece = contour; },
+      /**
+       * Donne au sol sa forme : un contour, une liste de contours, ou null
+       * pour revenir au rectangle des dimensions saisies.
+       *
+       * Les deux formes sont acceptées parce que les deux ont un sens : une
+       * pièce isolée n'a qu'un contour, un plan entier en a autant que de
+       * blocs. Normaliser ici évite d'avoir à le faire à chaque appel.
+       */
+      definirPolygone: function (contour) {
+        if (!contour || !contour.length) {
+          contoursPiece = null;
+          return;
+        }
+
+        var liste = (Array.isArray(contour[0]) && Array.isArray(contour[0][0]))
+          ? contour
+          : [contour];
+
+        liste = liste.filter(function (un) { return un && un.length >= 3; });
+        contoursPiece = liste.length ? liste : null;
+      },
       basculerVisite: function () { basculerVisite(); },
 
       /* Le décor d'accueil s'efface dès qu'un plan de l'utilisateur paraît.
