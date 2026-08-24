@@ -594,9 +594,9 @@
       /**
        * Joystick virtuel : le pouce gauche marche.
        *
-       * Il ne simule pas des touches. Il donne une direction, que l'on
-       * applique image par image avec `moveWithCollisions` — la même
-       * mécanique que le clavier de Babylon, murs compris. Simuler des
+       * Il ne simule pas des touches. Il donne une direction, versée image
+       * après image dans `cameraDirection` — la même mécanique que le
+       * clavier de Babylon, inertie et murs compris. Simuler des
        * appuis clavier aurait buté sur le sien : la visite coupe le clavier
        * de la caméra dès qu'on regarde autour de soi.
        */
