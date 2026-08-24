@@ -250,14 +250,21 @@
       course: false
     };
 
-    // Le clavier ne sert que quand on ne regarde pas.
-    etat.surPointerDown = function () {
+    /* Le clavier ne sert que quand on ne regarde pas.
+     *
+     * Le doigt est écarté : sur un écran tactile il n'y a pas de clavier à
+     * couper, et surtout la page de visite y branche ses propres commandes —
+     * un pouce qui marche, un autre qui regarde, en même temps. Remettre la
+     * marche à zéro à chaque début de glissement l'arrêterait net. */
+    etat.surPointerDown = function (evenement) {
+      if (evenement && evenement.pointerType === "touch") return;
       etat.regarde = true;
       camera.cameraDirection.set(0, 0, 0);
       clavier(camera, false);
     };
 
-    etat.surPointerUp = function () {
+    etat.surPointerUp = function (evenement) {
+      if (evenement && evenement.pointerType === "touch") return;
       if (!etat.regarde) return;
       etat.regarde = false;
       clavier(camera, true);

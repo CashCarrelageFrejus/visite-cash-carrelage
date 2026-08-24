@@ -802,6 +802,62 @@
     rendu.erreur = null;
   }
 
+  /**
+   * Les contours que le carrelage doit couvrir, en mètres.
+   *
+   * Trois sources, de la plus fidèle à la plus grossière :
+   *
+   *   1. les pièces du rez-de-chaussée, quand une maison est bâtie. Ce sont
+   *      les polygones relevés sur le plan : le sol s'arrête au nu intérieur
+   *      des cloisons, là où s'arrête vraiment le carrelage. On ne carrèle
+   *      pas sous un mur, et le métré ne doit pas le compter ;
+   *   2. le contour posé à la main, quand on a isolé une seule pièce ;
+   *   3. le rectangle des cotes saisies, faute de plan.
+   *
+   * La maison passe avant le contour posé à la main, et c'est le sujet :
+   * l'enveloppe du plan est une seule silhouette extérieure, dont la boîte
+   * englobante servait de sol. Sur un plan en L, ou dès que les pièces ne
+   * remplissent pas leur rectangle, le carrelage débordait de la maison —
+   * jusque dans le jardin. Les pièces, elles, décrivent exactement les
+   * surfaces à couvrir, une par une.
+   *
+   * Rend null quand aucun plan ne décrit le sol : la pièce est alors le
+   * rectangle des cotes saisies, que le calepinage sait déjà remplir au
+   * carreau près. Le découper n'apprendrait rien et referait ses comptes.
+   *
+   * @returns {Array<Array<[number, number]>>|null}
+   */
+  function contoursSol() {
+    if (maison && maison.pieces) {
+      var auSol = maison.pieces.filter(function (piece) {
+        return !(piece.altitude > 0) && piece.contour && piece.contour.length >= 3;
+      }).map(function (piece) { return piece.contour; });
+
+      if (auSol.length) return auSol;
+    }
+
+    if (contoursPiece && contoursPiece.length) return contoursPiece;
+
+    return null;
+  }
+
+  /**
+   * Le sol des cotes saisies : un rectangle centré sur l'origine.
+   *
+   * Il passe par le même chemin que les contours d'un plan — quatre coins
+   * plutôt que dix, mais même construction. Deux chemins séparés finiraient
+   * par diverger, et le sol changerait d'aspect selon qu'un plan est chargé
+   * ou non.
+   */
+  function rectangleDesCotes() {
+    return [[
+      [-dims.longueur / 2, -dims.largeur / 2],
+      [ dims.longueur / 2, -dims.largeur / 2],
+      [ dims.longueur / 2,  dims.largeur / 2],
+      [-dims.longueur / 2,  dims.largeur / 2]
+    ]];
+  }
+
   /** Vrai si la surface doit apparaître dans la scène. */
   function surfaceVisible(surface) {
     // Une maison bâtie porte ses propres murs : ceux de la pièce
@@ -820,20 +876,7 @@
     var maillage;
 
     if (surface.type === "sol") {
-      /* Le sol rectangulaire n'est qu'un polygone à quatre coins : le faire
-         passer par le même chemin garantit qu'il porte la même trame d'UV.
-         Deux constructions séparées finiraient par diverger, et le sol
-         changerait d'aspect selon qu'un plan est chargé ou non. */
-      var contoursSol = (contoursPiece && contoursPiece.length)
-        ? contoursPiece
-        : [[
-            [-dims.longueur / 2, -dims.largeur / 2],
-            [ dims.longueur / 2, -dims.largeur / 2],
-            [ dims.longueur / 2,  dims.largeur / 2],
-            [-dims.longueur / 2,  dims.largeur / 2]
-          ]];
-
-      maillage = creerFondPolygone(contoursSol, surface);
+      maillage = creerFondPolygone(contoursSol() || rectangleDesCotes(), surface);
       if (!maillage) return;
 
       rendu.repere = null;
@@ -885,7 +928,8 @@
          l'origine du monde. Sans ce décalage, la trame et le contour ne se
          recouvrent que par leur intersection : partout ailleurs le fond de
          joint affleure, et le sol paraît gris par plaques. */
-      var centre = centreEmprise(contoursPiece);
+      var contours = contoursSol();
+      var centre = centreEmprise(contours);
 
       projeter = function (u, v) {
         return [u + centre[0], CONFIG.carreau.hauteur, v + centre[1]];
@@ -900,12 +944,12 @@
 
          Les triangles se calculent une fois pour toute la surface : le
          contour ne bouge pas d'un carreau à l'autre. */
-      if (contoursPiece && contoursPiece.length) {
+      if (contours) {
         /* Les carreaux à découper sont exprimés dans le plan de calepinage :
            ce sont les contours qui y descendent, une fois, plutôt que chaque
            carreau qui en remonte. */
         var trianglesSol = Plan.trianglesDeContour(
-          contoursPiece.map(function (contour) {
+          contours.map(function (contour) {
             return contour.map(function (p) {
               return [p[0] - centre[0], p[1] - centre[1]];
             });
@@ -3289,6 +3333,15 @@
     surfaces.forEach(function (surface) {
       if (surface.type === "mur" && maison) detruireRendu(surface.id);
     });
+
+    /* Le sol se refait, parce que ce sont désormais les pièces de la maison
+       qui lui donnent sa forme — voir `contoursSol`. Sans cette ligne, il
+       resterait celui d'avant : le rectangle des cotes saisies, qui déborde
+       de la maison partout où les pièces ne remplissent pas leur boîte. Le
+       cas se voit surtout dans la visite partagée, où la maison arrive après
+       les dimensions. */
+    var sol = Surfaces.trouver(surfaces, "sol");
+    if (sol) reconstruireSurface(sol, undefined, true);
 
     Maison.construire();
     /* Le décor du seuil suit la maison : il se repose quand elle change, et

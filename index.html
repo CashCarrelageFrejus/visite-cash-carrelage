@@ -689,6 +689,90 @@
         });
       }
 
+      /* Rotation du regard au doigt, en radians par pixel glissé. Un demi-
+         écran de téléphone — deux cents pixels environ — fait tourner d'un
+         peu plus d'un quart de tour : assez pour se retourner d'un geste,
+         assez peu pour viser un carreau. */
+      var RADIANS_PAR_PIXEL = 0.006;
+
+      /* Le regard ne bascule pas au-delà : passé la verticale, l'image se
+         retournerait et l'horizon ferait un tonneau. 85°, en radians. */
+      var PIQUE_MAX = 1.48;
+
+      /* Part de l'écran, à droite, où le glissement fait tourner le regard.
+         La gauche reste au pouce qui marche : commencer un glissement près
+         de la manette ne doit pas faire pivoter la maison. */
+      var ZONE_REGARD = 0.5;
+
+      /**
+       * Le pouce droit regarde.
+       *
+       * Babylon a bien une entrée tactile, et elle est branchée — mais elle
+       * ne fait pas ce qu'on attend ici. Sa sensibilité par défaut est de
+       * 200 000 : un glissement de deux cents pixels fait tourner d'un
+       * millième de radian par image, autant dire rien. Et elle ne lit le
+       * glissement vertical que pour *avancer*, jamais pour lever les yeux —
+       * ce qui, avec une manette qui marche déjà, se marchait dessus.
+       *
+       * On la retire donc et on pose la convention des jeux à la première
+       * personne : le déplacement du doigt tourne le regard d'autant, tout
+       * de suite, sans inertie ni seuil. Deux doigts peuvent agir ensemble,
+       * chacun sur son pointeur — marcher et regarder en même temps est le
+       * geste le plus courant de la visite.
+       */
+      function brancherRegard(camera) {
+        var toile = document.getElementById("renderCanvas");
+        if (!toile) return;
+
+        /* L'entrée tactile de Babylon s'en va : la laisser en place ferait
+           avancer la caméra dès qu'on lève les yeux. */
+        try {
+          if (camera.inputs.attached.touch) {
+            camera.inputs.remove(camera.inputs.attached.touch);
+          }
+        } catch (e) { /* version de Babylon sans cette entrée : tant mieux */ }
+
+        var doigt = null;
+        var dernierX = 0, dernierY = 0;
+
+        toile.addEventListener("pointerdown", function (evenement) {
+          if (evenement.pointerType !== "touch" || doigt !== null) return;
+          // La moitié gauche appartient à la marche.
+          if (evenement.clientX < window.innerWidth * (1 - ZONE_REGARD)) return;
+
+          doigt = evenement.pointerId;
+          dernierX = evenement.clientX;
+          dernierY = evenement.clientY;
+          try { toile.setPointerCapture(doigt); } catch (e) { /* sans capture */ }
+        });
+
+        toile.addEventListener("pointermove", function (evenement) {
+          if (evenement.pointerId !== doigt) return;
+
+          var dx = evenement.clientX - dernierX;
+          var dy = evenement.clientY - dernierY;
+          dernierX = evenement.clientX;
+          dernierY = evenement.clientY;
+
+          /* On écrit la rotation directement plutôt que de passer par
+             `cameraRotation` : celle-ci est amortie par l'inertie de la
+             caméra, et le regard traînerait derrière le doigt. */
+          camera.rotation.y += dx * RADIANS_PAR_PIXEL;
+          camera.rotation.x += dy * RADIANS_PAR_PIXEL;
+
+          if (camera.rotation.x > PIQUE_MAX) camera.rotation.x = PIQUE_MAX;
+          if (camera.rotation.x < -PIQUE_MAX) camera.rotation.x = -PIQUE_MAX;
+
+          evenement.preventDefault();
+        });
+
+        ["pointerup", "pointercancel"].forEach(function (nom) {
+          toile.addEventListener(nom, function (evenement) {
+            if (evenement.pointerId === doigt) doigt = null;
+          });
+        });
+      }
+
       // --- Mise en route ------------------------------------------------------
 
       /** Le moteur est prêt quand scene.js a publié son interface. */
@@ -771,7 +855,10 @@
           camera.rotation.x = etat.camera.rotation[0];
         }
 
-        if (camera) brancherManette(camera);
+        if (camera) {
+          brancherManette(camera);
+          brancherRegard(camera);
+        }
         return true;
       }
 
