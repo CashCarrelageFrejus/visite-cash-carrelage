@@ -707,27 +707,45 @@
       /**
        * Entre en visite.
        *
-       * Le point de départ vient du lien quand le vendeur en a figé un —
-       * il partage alors ce qu'il regardait. Sinon on ouvre la visite au
-       * cœur de la plus grande pièce du rez-de-chaussée : on entre de
-       * plain-pied, jamais par un étage.
+       * Trois points de départ, du plus au moins renseigné :
+       *
+       *   - celui que le vendeur a figé dans le lien — il partage alors
+       *     exactement ce qu'il regardait, et cela prime sur tout ;
+       *   - le pas de la porte d'entrée, dehors, façade en face : le client
+       *     arrive chez les gens comme on y arrive, et entre en marchant ;
+       *   - le cœur de la plus grande pièce du rez-de-chaussée, quand aucune
+       *     entrée n'est marquée. On entre de plain-pied, jamais par un étage.
        */
       function entrerEnVisite(moteur, etat) {
         var maison = etat.maison;
         var depart = etat.camera ? etat.camera.depart : null;
+        var regard = null;
 
+        /* Faute d'un point de vue figé par le vendeur, on arrive par la
+           porte : sur le trottoir, façade en face, comme un visiteur. C'est
+           `departDevantEntree` qui sait où est la rue — l'entrée est marquée
+           sur le plan et voyage dans le lien. */
         if (!depart && maison) {
-          var rdc = {
-            pieces: (maison.pieces || []).filter(function (piece) {
-              return !(piece.altitude > 0);
-            })
-          };
-          depart = Visite.departConseille(rdc.pieces.length ? rdc : maison);
+          var parLEntree = moteur.departDevantEntree && moteur.departDevantEntree();
+
+          if (parLEntree) {
+            depart = parLEntree.depart;
+            regard = parLEntree.regard;
+          } else {
+            /* Aucune entrée marquée : au cœur de la plus grande pièce du
+               rez-de-chaussée. On entre de plain-pied, jamais par un étage. */
+            var rdc = {
+              pieces: (maison.pieces || []).filter(function (piece) {
+                return !(piece.altitude > 0);
+              })
+            };
+            depart = Visite.departConseille(rdc.pieces.length ? rdc : maison);
+          }
         }
 
         if (!depart) depart = [0, 0];
 
-        var regard = null;
+        // Un point de vue figé dans le lien fait foi : il l'emporte sur tout.
         if (etat.camera && etat.camera.rotation) {
           var lacet = etat.camera.rotation[1];
           regard = [depart[0] + Math.sin(lacet), depart[1] + Math.cos(lacet)];

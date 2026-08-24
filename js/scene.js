@@ -3110,16 +3110,33 @@
     document.body.classList.toggle("en-visite", visible);
   }
 
+  /* Recul du point de départ devant la porte, en mètres. Assez pour voir la
+     façade et l'encadrement de l'entrée dans le champ, assez peu pour qu'un
+     pas en avant suffise à franchir le seuil. */
+  var RECUL_ENTREE = 2.0;
+
+  /* Écart à la porte servant à reconnaître l'intérieur. Court exprès : au
+     delà, sur une petite entrée, le point d'essai sortirait par le mur d'en
+     face et l'on croirait le dehors dedans. */
+  var SONDE_ENTREE = 0.9;
+
   /**
-   * Point de départ juste en retrait de l'entrée, à l'intérieur.
+   * Point de départ devant l'entrée, sur le pas de la porte, dehors.
    *
-   * Les deux côtés du percement sont essayés : celui qui tombe dans une
-   * pièce est l'intérieur. Aucune convention d'orientation ne le dirait —
-   * seul l'emplacement des pièces le sait.
+   * Le visiteur arrive comme un visiteur : depuis la rue, face à la façade,
+   * la porte devant lui. Il entre en marchant. Démarrer à l'intérieur —
+   * ce que faisait cette fonction — escamotait l'arrivée et posait le client
+   * dans une pièce sans qu'il ait vu par où il venait d'entrer.
    *
-   * @returns {{depart, regard, porte}|null} en mètres. `regard` prolonge
-   *   l'entrée vers l'intérieur : c'est la direction dans laquelle on
-   *   franchit la porte. `porte` donne son centre et le vecteur unitaire qui
+   * Reste à savoir de quel côté est la rue. Aucune convention d'orientation
+   * ne le dit : la normale d'un mur est perpendiculaire, sans plus, et c'est
+   * l'emplacement des pièces qui tranche. On sonde donc les deux côtés du
+   * percement ; celui qui tombe dans une pièce est l'intérieur, l'autre est
+   * le dehors.
+   *
+   * @returns {{depart, regard, porte}|null} en mètres. `regard` vise
+   *   l'intérieur à travers la porte : c'est la direction dans laquelle on
+   *   franchit le seuil. `porte` donne son centre et le vecteur unitaire qui
    *   pointe vers le dehors — de quoi poser quelque chose sur le seuil sans
    *   refaire le tour des pièces pour savoir de quel côté est la rue.
    */
@@ -3129,35 +3146,69 @@
     var porte = MursPlan.entree(maison.murs);
     if (!porte) return null;
 
-    var recul = 0.9;
+    var versInterieur = orientationEntree(porte);
+    if (!versInterieur) return null;
+
+    // Le dehors, c'est l'autre côté.
+    var dehors = [-versInterieur[0], -versInterieur[1]];
+
+    var x = porte.centre[0] + dehors[0] * RECUL_ENTREE;
+    var z = porte.centre[1] + dehors[1] * RECUL_ENTREE;
+
+    return {
+      depart: [x, z],
+      // On regarde la porte, et au-delà l'intérieur : c'est là qu'on va.
+      regard: [x + versInterieur[0], z + versInterieur[1]],
+      porte: {
+        centre: [porte.centre[0], porte.centre[1]],
+        dehors: dehors
+      }
+    };
+  }
+
+  /**
+   * Vecteur unitaire de la porte vers l'intérieur du logement, ou null.
+   *
+   * Deux méthodes, dans cet ordre. La bonne : sonder les deux côtés et
+   * retenir celui qui tombe dans une pièce du rez-de-chaussée. Le repli :
+   * viser le barycentre des pièces. Il sert quand aucune sonde n'aboutit —
+   * une porte en fond de couloir étroit, un contour de pièce qui s'arrête
+   * au nu du mur — et vaut toujours mieux que renoncer, car renoncer
+   * renverrait le visiteur au milieu du salon.
+   */
+  function orientationEntree(porte) {
+    var auSol = (maison.pieces || []).filter(function (piece) {
+      return !(piece.altitude > 0) && piece.contour && piece.contour.length >= 3;
+    });
+    if (!auSol.length) return null;
 
     for (var sens = 1; sens >= -1; sens -= 2) {
-      var x = porte.centre[0] + porte.normale[0] * recul * sens;
-      var z = porte.centre[1] + porte.normale[1] * recul * sens;
+      var x = porte.centre[0] + porte.normale[0] * SONDE_ENTREE * sens;
+      var z = porte.centre[1] + porte.normale[1] * SONDE_ENTREE * sens;
 
-      var dedans = maison.pieces.some(function (piece) {
-        return !(piece.altitude > 0) &&
-               Plan.pointDansPolygone([x, z], piece.contour);
+      var dedans = auSol.some(function (piece) {
+        return Plan.pointDansPolygone([x, z], piece.contour);
       });
 
-      if (!dedans) continue;
-
-      /* Le côté retenu donne la direction du regard : on entre en poussant
-         la porte, donc en s'éloignant d'elle. Sans cela la caméra fixait un
-         azimut arbitraire et pouvait démarrer nez au mur, voire dehors. */
-      return {
-        depart: [x, z],
-        regard: [x + porte.normale[0] * sens, z + porte.normale[1] * sens],
-        porte: {
-          centre: [porte.centre[0], porte.centre[1]],
-          // L'opposé du sens retenu : si l'on entre par là, le dehors est
-          // de l'autre côté.
-          dehors: [-porte.normale[0] * sens, -porte.normale[1] * sens]
-        }
-      };
+      if (dedans) return [porte.normale[0] * sens, porte.normale[1] * sens];
     }
 
-    return null;
+    /* Repli : le côté de la normale qui pointe vers le gros du bâti. On ne
+       compare que le signe, la longueur n'a pas d'intérêt ici. */
+    var sommets = 0, cx = 0, cz = 0;
+    auSol.forEach(function (piece) {
+      piece.contour.forEach(function (p) { cx += p[0]; cz += p[1]; sommets++; });
+    });
+    if (!sommets) return null;
+
+    var versCentre = [cx / sommets - porte.centre[0], cz / sommets - porte.centre[1]];
+    var projection = versCentre[0] * porte.normale[0] + versCentre[1] * porte.normale[1];
+
+    // Le barycentre tombe pile sur le plan du mur : rien ne départage.
+    if (Math.abs(projection) < 1e-6) return null;
+
+    var sens = projection > 0 ? 1 : -1;
+    return [porte.normale[0] * sens, porte.normale[1] * sens];
   }
 
   function basculerVisite() {
@@ -3507,6 +3558,12 @@
       engine: engine,
       scene: scene,
       camera: camera,
+
+      /* Le pas de la porte d'entrée, dehors, et la direction pour entrer.
+         La page de visite s'en sert pour faire arriver le client par où l'on
+         arrive chez les gens, au lieu de le poser au milieu du salon. Rend
+         null si aucune entrée n'est marquée sur le plan. */
+      departDevantEntree: departDevantEntree,
 
       surfaces: function () { return surfaces; },
       surface: function (id) { return Surfaces.trouver(surfaces, id); },
