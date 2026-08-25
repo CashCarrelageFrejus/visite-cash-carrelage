@@ -168,6 +168,11 @@
       "rotation_aleatoire": true,
       "origine": "photo réelle iPhone — magasin — 2026-08-22",
       "id": "isea_sand",
+      "teinte": [
+        1.3,
+        1.27,
+        1.18
+      ],
       "cartes": {
         "albedo": "textures/isea_sand_albedo.jpg",
         "normal": "textures/isea_sand_normal.jpg",

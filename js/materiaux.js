@@ -192,6 +192,24 @@
     });
   }
 
+  /**
+   * Teinte d'ajustement déclarée par une fiche, ou le blanc.
+   *
+   * Elle multiplie la carte d'albédo : au-dessus de 1 elle éclaircit, en
+   * dessous elle assombrit. C'est le rattrapage d'un scan terne — un carreau
+   * photographié dans le magasin ne rend pas la lumière qu'il a en vitrine —
+   * sans repasser sur les images : les PNG restent la prise de vue d'origine,
+   * et la correction se relit dans le catalogue, chiffre à l'appui.
+   *
+   * Trois nombres, dans l'ordre rouge, vert, bleu. Les écarter légèrement
+   * colore la correction ; les garder égaux ne fait que monter la lumière.
+   */
+  function teinteDeFiche(materiau) {
+    var t = materiau && materiau.teinte;
+    if (!Array.isArray(t) || t.length < 3) return BABYLON.Color3.White();
+    return new BABYLON.Color3(t[0], t[1], t[2]);
+  }
+
   /** Tampons déclarés par une fiche, ou la seule carte d'albédo. */
   function tampons(materiau) {
     if (materiau && Array.isArray(materiau.tampons) && materiau.tampons.length > 1) {
@@ -291,6 +309,7 @@
     var multiTampons = listeTampons.length > 1;
 
     var suiteAlbedo = Promise.resolve();
+    var teinte = teinteDeFiche(materiau);
 
     if (multiTampons) {
       suiteAlbedo = composerAtlas(listeTampons.map(function (c) { return base + c; }))
@@ -298,13 +317,13 @@
           var texture = reglerEchelle(creerTexture(atlas.url, scene, false));
           texture.coordinatesIndex = 0;
           materiauBabylon.albedoTexture = texture;
-          materiauBabylon.albedoColor = BABYLON.Color3.White();
+          materiauBabylon.albedoColor = teinte;
         });
     } else if (cartes.albedo) {
       var albedo = reglerEchelle(creerTexture(url("albedo"), scene, false));
       albedo.coordinatesIndex = 0;
       materiauBabylon.albedoTexture = albedo;
-      materiauBabylon.albedoColor = BABYLON.Color3.White();
+      materiauBabylon.albedoColor = teinte;
     }
 
     // Nombre de cases de l'atlas, lu par la scène pour construire les UV.
