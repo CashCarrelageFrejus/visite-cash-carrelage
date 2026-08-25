@@ -754,11 +754,37 @@
       ? contours
       : [contours];
 
+    /* Chaque contour est triangulé pour lui-même, et une pièce qui échoue
+       n'emporte pas les autres : sur un plan d'une dizaine de pièces, un
+       contour bancal ne doit pas laisser toute la maison sans sol. L'échec
+       se dit en console — muet, il se traduirait par une pièce nue que rien
+       n'explique. */
     var triangles = [];
-    liste.forEach(function (pts) {
-      if (!pts || pts.length < 3) return;
-      Plan.triangulation(pts.map(function (p) { return { x: p[0], y: p[1] }; }))
-        .forEach(function (tri) { triangles.push(tri); });
+    liste.forEach(function (pts, rang) {
+      if (!pts || pts.length < 3) {
+        console.warn("Sol : contour " + (rang + 1) + " ignoré (" +
+          (pts ? pts.length : 0) + " sommets).");
+        return;
+      }
+
+      var part;
+      try {
+        part = Plan.triangulation(pts.map(function (p) {
+          return { x: p[0], y: p[1] };
+        }));
+      } catch (e) {
+        console.warn("Sol : contour " + (rang + 1) + " non triangulable — " +
+          e.message);
+        return;
+      }
+
+      if (!part.length) {
+        console.warn("Sol : contour " + (rang + 1) + " n'a produit aucun " +
+          "triangle ; cette pièce restera sans carrelage.");
+        return;
+      }
+
+      part.forEach(function (tri) { triangles.push(tri); });
     });
 
     if (!triangles.length) return null;
