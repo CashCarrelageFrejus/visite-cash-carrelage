@@ -26,6 +26,29 @@
     metallique: 0.0
   };
 
+  /* Rugosité plancher, pour une fiche qui déclarerait la sienne. À zéro, la
+     surface devient un miroir parfait : sous un environnement HDRI, elle
+     renvoie le studio au lieu du carreau, et l'on ne voit plus la texture.
+     Aucun carrelage n'est un miroir, pas même un poli brillant. */
+  var RUGOSITE_MIN = 0.2;
+
+  /** Rugosité d'une fiche, jamais assez basse pour faire un miroir. */
+  function rugositeDe(materiau) {
+    var valeur = materiau.rugosite !== undefined
+      ? materiau.rugosite : DEFAUTS.rugosite;
+    return Math.max(RUGOSITE_MIN, valeur);
+  }
+
+  /* Métallicité d'une fiche. Un carreau céramique n'est pas un métal : sa
+     réflexion est celle d'un diélectrique, et la monter donnerait une
+     tôle colorée. Le zéro par défaut est le bon, et la borne haute évite
+     qu'une fiche l'oublie. */
+  function metalliciteDe(materiau) {
+    var valeur = materiau.metallique !== undefined
+      ? materiau.metallique : DEFAUTS.metallique;
+    return Math.min(1, Math.max(0, valeur));
+  }
+
   var catalogue = [];
 
   // --- Chargement du catalogue ---------------------------------------------
@@ -364,22 +387,24 @@
         materiauBabylon.useMetallnessFromMetallicTextureBlue = true;
         materiauBabylon.useRoughnessFromMetallicTextureAlpha = false;
 
-        // Un canal sans carte reste à 255 : le scalaire correspondant en
-        // devient le pilote, d'où le repli sur les valeurs du catalogue.
+        /* Un canal sans carte reste à 255 : le scalaire correspondant en
+           devient le pilote, d'où le repli sur les valeurs du catalogue.
+           Quand la carte pilote, le scalaire vaut 1 — c'est un multiplicateur,
+           pas une valeur, et l'abaisser étoufferait la carte. */
         materiauBabylon.roughness = compose.pilotees.rugosite
           ? 1
-          : (materiau.rugosite !== undefined ? materiau.rugosite : DEFAUTS.rugosite);
+          : rugositeDe(materiau);
         materiauBabylon.metallic = compose.pilotees.metallique
           ? 1
-          : (materiau.metallique !== undefined ? materiau.metallique : DEFAUTS.metallique);
+          : metalliciteDe(materiau);
 
         return {};
       });
     } else {
       // Aucune carte de réflectance : tout repose sur les scalaires.
       materiauBabylon.metallicTexture = null;
-      materiauBabylon.roughness = materiau.rugosite !== undefined ? materiau.rugosite : DEFAUTS.rugosite;
-      materiauBabylon.metallic = materiau.metallique !== undefined ? materiau.metallique : DEFAUTS.metallique;
+      materiauBabylon.roughness = rugositeDe(materiau);
+      materiauBabylon.metallic = metalliciteDe(materiau);
       suite = Promise.resolve({});
     }
 

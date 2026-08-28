@@ -20,10 +20,37 @@
   // --- Configuration -------------------------------------------------------
 
   var CONFIG = {
-    // Environnement HDR pré-filtré (IBL). Remplaçable par un .env local
-    // déposé dans textures/ : "../textures/mon-environnement.env"
-    hdrUrl: "https://assets.babylonjs.com/environments/environmentSpecular.env",
+    /* Environnement image-based : une photographie de lumière, dont le PBR
+       tire ses reflets. C'est elle qui fait la différence entre un carreau et
+       un aplat de couleur.
+
+       Studio à lumière chaude, et local. Deux environnements ont été écartés
+       avant lui, tous deux pour la même raison : ils versaient du bleu sur les
+       carreaux et annulaient leur teinte. Un sable relevé à 210/199/179 —
+       écart rouge/bleu de +31 — s'affichait à 198/193/194 sous le ciel du
+       réseau Babylon, puis à 173/177/184 sous un studio froid, soit un écart
+       devenu négatif : le carreau rendait plus de bleu que de rouge.
+
+       Récupérable par « node outils/dl-hdri.js », le dossier textures/
+       n'étant pas versionné. */
+    hdrUrl: "textures/photo_studio_loft_hall_1k.hdr",
+
+    // Côté du cube filtré à la volée depuis le .hdr. 512 suffit pour de
+    // l'éclairage ; au-delà, on paye un préfiltrage plus long sans le voir.
+    hdrResolution: 512,
+
+    /* À 0,7, le studio chaud rendait bien la teinte des carreaux mais laissait
+       la scène terne — luminance 145 là où l'ancien ciel donnait 178. Le
+       niveau plein rattrape la lumière sans rien coûter à la couleur : c'est
+       le même environnement, seulement plus présent. */
     hdrIntensite: 1.0,
+
+    /* Les lampes ne sont plus la source principale : l'environnement porte la
+       lumière, elles ne font que sculpter. À pleine intensité par-dessus lui,
+       les clairs brûlaient et le carrelage tournait au plastique. Le facteur
+       s'applique aux trois lampes de chaque ambiance — il survit donc aux
+       changements de preset, ce qu'un réglage posé une fois ne ferait pas. */
+    facteurLampes: 0.6,
 
     /* La page vit dans app/ ; catalogue/ et textures/ sont à la racine.
        Une page qui les voit ailleurs — la copie publiée, où tout est à plat —
@@ -433,7 +460,19 @@
   function creerEclairage() {
     // 1. Éclairage image-based : source principale de la lumière PBR.
     try {
-      var hdr = BABYLON.CubeTexture.CreateFromPrefilteredData(CONFIG.hdrUrl, scene);
+      /* HDRCubeTexture, et non CreateFromPrefilteredData : celle-ci attend un
+         .env déjà filtré, quand un .hdr est une photographie brute. Le dernier
+         argument demande le préfiltrage au chargement — sans lui, la scène
+         n'aurait qu'un reflet net, jamais la diffusion douce d'un studio. */
+      var hdr = new BABYLON.HDRCubeTexture(
+        CONFIG.baseRessources + CONFIG.hdrUrl,
+        scene,
+        CONFIG.hdrResolution,
+        false,   // pas de génération d'harmoniques sphériques séparée
+        true,    // inverser l'axe Z : convention Babylon
+        false,   // gamma : un HDR est déjà linéaire
+        true     // préfiltrer au chargement
+      );
       scene.environmentTexture = hdr;
       scene.environmentIntensity = CONFIG.hdrIntensite;
 
@@ -497,25 +536,38 @@
     var reglage = presetResolu();
     if (!reglage) return null;
 
+    /* Les intensités des ambiances sont écrites pour un éclairage porté par
+       les lampes. Depuis que l'environnement HDRI porte la lumière, elles
+       s'ajoutent à lui : le facteur les ramène à leur rôle de modelé. Il
+       s'applique ici, et non une fois pour toutes à la création — sans quoi
+       le premier changement d'ambiance rendrait aux lampes leur pleine
+       puissance et rebrûlerait la scène. */
+    var facteur = CONFIG.facteurLampes > 0 ? CONFIG.facteurLampes : 1;
+
     if (lumiereAmbiance) {
-      lumiereAmbiance.intensity = reglage.ambiance.intensite;
+      lumiereAmbiance.intensity = reglage.ambiance.intensite * facteur;
       lumiereAmbiance.diffuse = BABYLON.Color3.FromArray(reglage.ambiance.ciel);
       lumiereAmbiance.groundColor = BABYLON.Color3.FromArray(reglage.ambiance.sol);
     }
 
     if (lumiereSoleil) {
-      lumiereSoleil.intensity = reglage.soleil.intensite;
+      lumiereSoleil.intensity = reglage.soleil.intensite * facteur;
       lumiereSoleil.diffuse = BABYLON.Color3.FromArray(reglage.soleil.couleur);
       lumiereSoleil.direction = BABYLON.Vector3.FromArray(reglage.soleil.direction).normalize();
     }
 
     if (lumiereAppoint) {
-      lumiereAppoint.intensity = reglage.appoint.intensite;
+      lumiereAppoint.intensity = reglage.appoint.intensite * facteur;
       lumiereAppoint.diffuse = BABYLON.Color3.FromArray(reglage.appoint.couleur);
       lumiereAppoint.direction = BABYLON.Vector3.FromArray(reglage.appoint.direction).normalize();
     }
 
-    if (scene) scene.environmentIntensity = reglage.environnement;
+    /* L'ambiance module l'environnement, elle ne le fixe pas : `environnement`
+       vaut 1 pour le showroom et s'écarte pour les autres, CONFIG.hdrIntensite
+       donnant le niveau de référence. */
+    if (scene) {
+      scene.environmentIntensity = reglage.environnement * CONFIG.hdrIntensite;
+    }
 
     // Le soleil du ciel se replace là où pointent les ombres.
     majCiel(reglage);
@@ -3579,19 +3631,48 @@
     brancherReglagesEscalier();
     Panneau.brancher();
 
-    /* Une pièce meublée dès l'ouverture : la page ne s'affiche plus sur une
-       scène vide, et ce qu'on y voit est bâti par le chemin ordinaire. Elle
-       s'efface d'elle-même dès qu'un plan est chargé. */
-    Traceur2D.demo();
+    /* Un projet reçu par lien, s'il y en a un. L'application ouvre alors ce
+       qu'on lui donne, comme le fait la page de visite : un vendeur qui rouvre
+       son projet depuis un mail, ou reçoit celui d'un collègue, retrouve la
+       scène et pas la démonstration. */
+    var recu = (typeof Partage !== "undefined" && Partage.aUnLien())
+      ? Partage.deserialiser(window.location.hash)
+      : null;
 
-    /* Puis le mobilier d'hier, remis où il était. Après la démo : les
-       meubles se posent dans le monde, et la maison doit exister pour qu'on
-       les y retrouve à leur place. */
-    /* Sauf si la page rejoue un lien de visite : celui-ci porte son propre
-       mobilier, et les meubles rangés dans ce navigateur viendraient s'y
-       ajouter — la restauration est asynchrone, elle atterrirait après. Le
-       lien fait foi, pas le navigateur qui l'ouvre. */
-    if (typeof Partage === "undefined" || !Partage.aUnLien()) restaurerMobilier();
+    if (recu && recu.valide) {
+      /* Le lien remplace la démonstration, il ne se pose pas par-dessus.
+         La monter d'abord ferait clignoter une maison qui n'est pas celle du
+         projet — et surtout son montage se poursuit en arrière-plan : il
+         retombait sur le projet restauré et l'effaçait.
+
+         Et l'on attend le catalogue : sans lui, `appliquerApparence` ne
+         reconnaît aucun identifiant de matériau, traite chacun comme une
+         erreur et vide la texture de la surface. Le projet arrivait alors
+         complet — murs, cotes, mobilier — mais sans un seul carrelage. */
+      Panneau.catalogueCharge().then(function () {
+        Partage.appliquer(recu);
+
+        var champNom = document.getElementById("nom-projet");
+        if (champNom && recu.nom) champNom.value = recu.nom;
+
+        Panneau.chargerPanneau();
+        Panneau.majMetre();
+      });
+
+      /* Le mobilier du navigateur n'est pas rappelé : le lien porte le sien,
+         et les meubles d'hier viendraient s'y ajouter. Le lien fait foi, pas
+         le navigateur qui l'ouvre. */
+    } else {
+      /* Une pièce meublée dès l'ouverture : la page ne s'affiche plus sur une
+         scène vide, et ce qu'on y voit est bâti par le chemin ordinaire. Elle
+         s'efface d'elle-même dès qu'un plan est chargé. */
+      Traceur2D.demo();
+
+      /* Puis le mobilier d'hier, remis où il était. Après la démo : les
+         meubles se posent dans le monde, et la maison doit exister pour qu'on
+         les y retrouve à leur place. */
+      restaurerMobilier();
+    }
 
     var compteurFps = document.getElementById("resume-fps");
     var dernierAffichage = 0;
@@ -3696,6 +3777,16 @@
       fenetres: function () { return fenetres.slice(); },
       ajouterFenetre: ajouterFenetre,
       supprimerFenetre: supprimerFenetre,
+
+      /* Les polygones réellement carrelés, en mètres. C'est la seule source
+         honnête pour une surface à commander : ni la boîte englobante, ni les
+         cotes saisies, mais ce que le sol couvre. */
+      contoursSol: function () {
+        var liste = contoursSol() || rectangleDesCotes();
+        return liste.map(function (contour) {
+          return contour.map(function (p) { return [p[0], p[1]]; });
+        });
+      },
 
       recadrerCamera: recadrerCamera,
       reconstruireTout: reconstruireTout,
