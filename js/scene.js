@@ -389,11 +389,25 @@
   }
 
   /* Densité de rendu maximale. Au-delà, le gain visible ne paie plus la
-     mémoire consommée — et sur un téléphone, il la paie d'un écran noir. */
-  var DENSITE_RENDU_MAX = 2;
+     mémoire consommée — et sur un téléphone, il la paie d'un écran noir.
+
+     Descendue de 2 à 1,5 : à 2, l'iPhone perdait encore son contexte à la
+     création du moteur. Le tampon d'un écran de 390×844 passe ainsi de
+     780×1688 à 585×1266, soit 56 % des pixels de l'étage précédent et un
+     quart de la résolution native. */
+  var DENSITE_RENDU_MAX = 1.5;
 
   /* Largeur en deçà de laquelle on tient l'appareil pour un téléphone. */
   var LARGEUR_TELEPHONE = 768;
+
+  /* Densité au-delà de laquelle on tient l'appareil pour un téléphone.
+
+     Séparée du plafond de rendu, et non calée dessus : ce sont deux
+     questions distinctes. « Jusqu'où rendre finement » se règle au besoin,
+     et l'a déjà été deux fois ; « qu'est-ce qu'un petit appareil » ne bouge
+     pas avec. Les confondre reviendrait à retirer le halo de tout écran
+     Retina de bureau le jour où l'on rabaisse le plafond. */
+  var DENSITE_APPAREIL_MODESTE = 2;
 
   /**
    * Vrai si la page prend des captures d'écran de la scène.
@@ -418,7 +432,7 @@
   function appareilModeste() {
     if (typeof window === "undefined") return false;
     return window.innerWidth < LARGEUR_TELEPHONE ||
-           (window.devicePixelRatio || 1) > DENSITE_RENDU_MAX;
+           (window.devicePixelRatio || 1) > DENSITE_APPAREIL_MODESTE;
   }
 
   function afficherErreur(message) {
