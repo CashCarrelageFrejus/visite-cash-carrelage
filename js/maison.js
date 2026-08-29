@@ -20,7 +20,7 @@
   /* Matériaux propres aux volumes bâtis, créés à la première demande et
      gardés ensuite : une maison compte vite une centaine de boîtes, et il
      n'en faut qu'un par teinte. */
-  var materiauVitreMaison, materiauMurMaison, materiauEntree;
+  var materiauVitreMaison, materiauMurMaison, materiauEntree, materiauBattant;
   var materiauMarche, materiauRampe;
 
   // --- Maison reconstruite depuis un plan ----------------------------------
@@ -107,6 +107,7 @@
       maison.murs.forEach(habillerMur);
       construireVitragesMaison();
       construireEncadrementEntree();
+      construireBattants();
     }
 
     construireEscaliers();
@@ -268,8 +269,19 @@
     if (!blocs.length) return;
 
     if (!materiauEntree) {
+      /* Mat, et pas métallique du tout. L'encadrement était réglé à 25 % de
+         métal pour une rugosité de 0,45 : de quoi renvoyer l'environnement
+         net comme un miroir. Sous un HDRI photographique, ses jambages
+         reflétaient un bâtiment reconnaissable — on lisait la baie du studio
+         dans le tableau de la porte.
+
+         Un dormant de porte est peint ou verni : sa réflexion est celle d'un
+         diélectrique mat, pas d'un métal poli. Les faces intérieures ne
+         demandent pas de matériau à part — ces blocs traversent le mur, leurs
+         deux côtés sont la même boîte, et ce qui vaut pour l'un vaut pour
+         l'autre. */
       materiauEntree = materiauUni("maison-entree", N.CONFIG.maison.couleurEntree, {
-        rugosite: 0.45, metallique: 0.25
+        rugosite: 0.9, metallique: 0
       });
     }
 
@@ -559,6 +571,53 @@
 
       N.rendusMaison.vitres.push(vitre);
     });
+      });
+  }
+
+  /**
+   * Battants des portes pleines.
+   *
+   * Sans eux, le percement d'une porte reste un trou : de dehors, on voyait
+   * le carrelage et les murs du séjour à travers la porte d'entrée. Ce n'était
+   * ni une transparence ni une normale inversée — il n'y avait tout
+   * simplement aucun maillage, `vitrages` ne posant que les ouvertures
+   * vitrées.
+   *
+   * Sans collision, à dessein. La visite immersive entre par cette porte :
+   * elle commence sur le pas, dehors, et le premier pas franchit le seuil.
+   * Un battant qui arrête le visiteur enfermerait la maison. Il bouche donc
+   * la vue sans barrer le passage — on traverse une porte qu'on voit fermée,
+   * ce qui se lit comme une porte qui s'ouvre.
+   */
+  function construireBattants() {
+    var maison = N.maison();
+    if (!maison || !maison.murs) return;
+
+    if (!materiauBattant) {
+      materiauBattant = materiauUni("maison-battant", N.CONFIG.maison.couleurEntree, {
+        rugosite: 0.9, metallique: 0
+      });
+    }
+
+    (maison.niveaux || [{ murs: maison.murs, altitude: 0, cle: "rdc" }])
+      .forEach(function (niveau) {
+        MursPlan.battants(niveau.murs).forEach(function (bloc, rang) {
+          var battant = BABYLON.MeshBuilder.CreateBox(
+            "maison-battant-" + niveau.cle + "-" + rang,
+            { width: bloc.taille[0], height: bloc.taille[1], depth: bloc.taille[2] },
+            N.scene()
+          );
+
+          battant.position.set(bloc.centre[0], bloc.centre[1] + niveau.altitude,
+                               bloc.centre[2]);
+          battant.rotation.y = bloc.angle;
+          battant.material = materiauBattant;
+          battant.receiveShadows = true;
+          battant.checkCollisions = false;
+
+          if (N.ombres()) N.ombres().addShadowCaster(battant);
+          N.rendusMaison.murs.push(battant);
+        });
       });
   }
 

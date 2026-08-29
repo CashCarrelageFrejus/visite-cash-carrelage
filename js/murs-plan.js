@@ -498,6 +498,53 @@
   }
 
   /**
+   * Les battants des portes pleines, à poser dans leur percement.
+   *
+   * `vitrages` ne rend que les ouvertures vitrées : une porte pleine n'a pas
+   * de vitre, elle en sortait donc les mains vides et son percement restait
+   * un trou. De dehors, on voyait le carrelage et les murs du salon à travers
+   * la porte d'entrée — la maison paraissait ouverte à tous les vents.
+   *
+   * Le battant est centré dans l'épaisseur du mur plutôt que plaqué d'un
+   * côté : il bouche alors l'ouverture des deux, et il n'y a pas à décider
+   * lequel est le dehors — question qui n'a d'ailleurs pas de réponse pour
+   * une porte intérieure.
+   *
+   * @returns {Array} [{ centre, taille, angle, type }]
+   */
+  function battants(listeMurs, options) {
+    var o = options || {};
+    var epaisseur = o.epaisseur > 0 ? o.epaisseur : 0.04;
+    var blocs = [];
+
+    (listeMurs || []).forEach(function (mur) {
+      var dx = mur.b[0] - mur.a[0], dz = mur.b[1] - mur.a[1];
+      var lg = Math.sqrt(dx * dx + dz * dz);
+      if (lg < LONGUEUR_MIN) return;
+
+      var ux = dx / lg, uz = dz / lg;
+
+      (mur.trous || []).forEach(function (trou) {
+        // Une porte-fenêtre a sa vitre : c'est `vitrages` qui la pose.
+        if (trou.type !== "door" || trou.vitre) return;
+
+        var tm = (trou.debut + trou.fin) / 2;
+
+        blocs.push({
+          centre: [mur.a[0] + ux * tm, (trou.bas + trou.haut) / 2,
+                   mur.a[1] + uz * tm],
+          taille: [trou.fin - trou.debut, trou.haut - trou.bas, epaisseur],
+          angle: mur.angle,
+          type: trou.type,
+          entree: trou.entree === true
+        });
+      });
+    });
+
+    return blocs;
+  }
+
+  /**
    * Zones de dégagement devant chaque ouverture, à laisser libres.
    *
    * Renvoie un cercle par percement : centre au milieu du trou, rayon
@@ -1146,6 +1193,7 @@
     murs:           murs,
     percer:         percer,
     vitrages:       vitrages,
+    battants:       battants,
     degagements:    degagements,
     panneaux:       panneaux,
     longueurTotale: longueurTotale,

@@ -1663,6 +1663,34 @@
     return facteur;
   }
 
+  /* Les modèles du décor de démonstration : la rue et ce qui la borde. Ils
+     ne sont ni du mobilier ni du bâti, seulement le contexte autour de la
+     maison — et rien de ce qu'ils portent n'a de raison de briller. */
+  var DECOR_MAT = ["route.glb", "parking.glb", "Arbre.glb"];
+
+  /**
+   * Ôte le brillant des matériaux d'un modèle de décor.
+   *
+   * Ces fichiers viennent de bibliothèques en ligne, avec les réglages de la
+   * scène où ils ont été faits. La voirie de route.glb arrivait à 40 % de
+   * métal pour une rugosité de 0,23 : sous un HDRI photographique, elle
+   * renvoyait le studio comme une flaque. Un enrobé ne réfléchit rien.
+   *
+   * Le mobilier, lui, n'est pas touché : un robinet ou un miroir ont le droit
+   * de briller, et c'est au fichier de le dire.
+   */
+  function materDecor(maillages, fichier) {
+    if (DECOR_MAT.indexOf(fichier) === -1) return;
+
+    (maillages || []).forEach(function (maillage) {
+      var materiau = maillage && maillage.material;
+      if (!materiau || materiau.metallic === undefined) return;
+
+      materiau.metallic = 0;
+      materiau.roughness = 0.9;
+    });
+  }
+
   /**
    * Charge un modèle GLB de modeles-3d/, ou rend null s'il ne vient pas.
    *
@@ -1688,6 +1716,8 @@
         function (maillages) {
           var racine = maillages[0];
           if (!racine) { resoudre(null); return; }
+
+          materDecor(maillages, fichier);
 
           /* L'encombrement se mesure avant de désactiver : il donne le
              facteur d'échelle, et le modèle peut faire n'importe quelle
@@ -3709,6 +3739,61 @@
     }
 
     scene.executeWhenReady(masquerChargement);
+
+    /**
+     * Écran de chargement de Babylon, aux couleurs de l'enseigne.
+     *
+     * Babylon en pose un par défaut — fond gris-bleu, « Loading... » en
+     * anglais — dès qu'on lui demande d'en montrer un. Il n'a rien à voir
+     * avec le nôtre, et le client le prendrait pour une autre application.
+     *
+     * Celui-ci rejoue le voile de la page plutôt que d'en dresser un second :
+     * même logo, même fond, même rouet. Une seule identité, décrite à un seul
+     * endroit — la feuille de style de index.html.
+     *
+     * Rien ne l'appelle aujourd'hui : le chargement des meubles passe par
+     * `SceneLoader.ImportMesh`, qui ne montre aucun écran. Il est là pour que
+     * le jour où quelque chose en demande un, ce soit celui-ci.
+     */
+    function EcranChargement() {
+      this.loadingUIBackgroundColor = "#0b0c0f";
+      this._texte = "Chargement…";
+    }
+
+    Object.defineProperty(EcranChargement.prototype, "loadingUIText", {
+      get: function () { return this._texte; },
+      set: function (valeur) {
+        this._texte = valeur;
+        var ecran = document.getElementById("chargement");
+        var ligne = ecran && ecran.querySelector("p");
+        if (ligne) ligne.textContent = valeur;
+      }
+    });
+
+    EcranChargement.prototype.displayLoadingUI = function () {
+      var ecran = document.getElementById("chargement");
+      if (!ecran) return;
+
+      ecranMasque = false;
+      ecran.style.display = "";
+
+      /* Un recalcul forcé entre l'affichage et le retrait de la classe :
+         sans lui, les deux se fondent dans le même lot de style et la
+         transition d'opacité ne part jamais de zéro.
+
+         Lecture synchrone plutôt que `requestAnimationFrame` : celui-ci ne
+         se déclenche pas dans un onglet en arrière-plan, et l'écran restait
+         alors à demi transparent. */
+      void ecran.offsetHeight;
+      ecran.classList.remove("masque");
+    };
+
+    EcranChargement.prototype.hideLoadingUI = function () {
+      ecranMasque = false;
+      masquerChargement();
+    };
+
+    engine.loadingScreen = new EcranChargement();
 
     // Filet de sécurité : si une ressource distante ne se résout jamais,
     // on découvre quand même la scène plutôt que de rester sur le voile.
