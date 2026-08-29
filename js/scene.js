@@ -409,17 +409,28 @@
     scene = new BABYLON.Scene(engine);
     scene.clearColor = new BABYLON.Color4(0.043, 0.047, 0.059, 1.0);
 
-    // Pipeline PBR : espace colorimétrique linéaire + tone mapping ACES.
+    /* Tone mapping ACES posé sur la scène, et non par un pipeline de
+       post-traitement.
+
+       Un DefaultRenderingPipeline a été essayé, avec bloom, vignette et
+       occlusion ambiante. Il rendait l'écran entièrement vert au retour de
+       la visite immersive : cette page monte une seconde caméra sur la même
+       scène, et le rattachement d'un pipeline à une caméra qui change ne
+       s'en remet pas. Le SSAO2 d'abord, puis le pipeline seul, ont produit
+       le même défaut.
+
+       Posée ici, la configuration s'applique à toute caméra de la scène,
+       présente ou future, sans rien à rattacher ni à détacher. C'est moins
+       flatteur — pas de bloom, pas de vignette — et c'est sûr. */
     scene.imageProcessingConfiguration.toneMappingEnabled = true;
     scene.imageProcessingConfiguration.toneMappingType =
       BABYLON.ImageProcessingConfiguration.TONEMAPPING_ACES;
-    scene.imageProcessingConfiguration.exposure = 1.0;
-    scene.imageProcessingConfiguration.contrast = 1.1;
+    scene.imageProcessingConfiguration.exposure = 1.2;
+    scene.imageProcessingConfiguration.contrast = 1.08;
 
     surfaces = Surfaces.creer();
 
     creerCamera();
-    creerPostTraitement();
     creerEclairage();
     construireExterieur();
     reconstruireTout();
@@ -456,181 +467,6 @@
     camera.panningInertia = 0.85;
     camera.inertia = 0.82;
     camera.useNaturalPinchZoom = true;
-  }
-
-  /**
-   * Post-traitement de l'image : anti-crénelage, bloom, netteté, ACES,
-   * vignette, puis occlusion ambiante de contact.
-   *
-   * L'ordre compte. Le tone mapping ACES ferme la chaîne : il ramène une
-   * scène calculée en linéaire vers ce qu'un écran sait montrer, et tout ce
-   * qui se règle avant lui se juge donc après lui.
-   *
-   * Le SSAO2 se pose à part, dans son propre pipeline. Il travaille sur la
-   * profondeur, en amont de la couleur, et coûte cher : c'est le seul effet
-   * qu'une machine modeste refuse.
-   */
-  function creerPostTraitement() {
-    if (!scene || !scene.activeCamera) return null;
-
-    try {
-      var pipeline = new BABYLON.DefaultRenderingPipeline(
-        "mainPipeline", true, scene, [scene.activeCamera]
-      );
-
-      /* FXAA et MSAA se cumulent sans faire double emploi : le MSAA lisse les
-         arêtes de géométrie, le FXAA celles que la texture dessine — les
-         joints d'un carrelage vu de biais, que le MSAA ne voit pas. */
-      pipeline.fxaaEnabled = true;
-      pipeline.samples = 4;
-
-      /* Bloom très retenu. Un carreau poli renvoie une tache spéculaire vive,
-         et sans diffusion elle reste un point dur. Au-delà de ce poids, le
-         showroom vire au halo et les joints s'effacent. */
-      pipeline.bloomEnabled = true;
-      pipeline.bloomThreshold = 0.78;
-      pipeline.bloomWeight = 0.12;
-      pipeline.bloomKernel = 64;
-      pipeline.bloomScale = 0.5;
-
-      // Rend au relief des joints le mordant que l'anti-crénelage lui ôte.
-      pipeline.sharpenEnabled = true;
-      pipeline.sharpen.edgeAmount = 0.25;
-      pipeline.sharpen.colorAmount = 1.0;
-
-      pipeline.imageProcessingEnabled = true;
-
-      /* Ces réglages écrivent dans scene.imageProcessingConfiguration : le
-         post-traitement partage l'objet que creerScene a déjà renseigné, il
-         ne s'y superpose pas. Les valeurs posées ici l'emportent donc, et
-         celles de creerScene restent le repli si ce pipeline échoue. */
-      pipeline.imageProcessing.toneMappingEnabled = true;
-      pipeline.imageProcessing.toneMappingType =
-        BABYLON.ImageProcessingConfiguration.TONEMAPPING_ACES;
-      pipeline.imageProcessing.exposure = 1.0;
-      pipeline.imageProcessing.contrast = 1.08;
-
-      /* Vignette en multiplication et non en superposition : elle assombrit
-         les bords sans y déposer de couleur, ce qui laisse un carreau clair
-         en périphérie garder sa teinte. C'est un catalogue : la couleur d'un
-         carreau ne doit pas dépendre de l'endroit où il tombe à l'écran. */
-      pipeline.imageProcessing.vignetteEnabled = true;
-      pipeline.imageProcessing.vignetteWeight = 2.8;
-      pipeline.imageProcessing.vignetteCameraFov = 0.5;
-      pipeline.imageProcessing.vignetteColor = new BABYLON.Color4(0, 0, 0, 0);
-      pipeline.imageProcessing.vignetteBlendMode =
-        BABYLON.ImageProcessingConfiguration.VIGNETTEMODE_MULTIPLY;
-
-      CONFIG.pipeline = pipeline;
-    } catch (e) {
-      afficherErreur(
-        "Le post-traitement de l'image n'a pas pu être créé (" + e.message +
-        "). La scène est rendue sans lui."
-      );
-      return null;
-    }
-
-    creerOcclusion();
-    suivreCameraActive();
-
-    return CONFIG.pipeline;
-  }
-
-  /**
-   * Occlusion ambiante de contact : le liseré d'ombre au pied d'une plinthe,
-   * dans l'angle de deux murs, au creux d'un joint. Sans elle, une pièce
-   * éclairée par un HDRI paraît décollée d'elle-même.
-   *
-   * Deux conditions avant de la monter. IsSupported dit si le moteur sait
-   * rendre dans les cibles flottantes qu'elle réclame ; le nombre
-   * d'échantillons MSAA sert de mesure grossière du GPU, un téléphone
-   * d'entrée de gamme n'ayant pas les moyens de seize sondes par pixel.
-   */
-  function creerOcclusion() {
-    var caps = scene.getEngine().getCaps();
-    var supporte = BABYLON.SSAO2RenderingPipeline &&
-                   BABYLON.SSAO2RenderingPipeline.IsSupported;
-    var ssaoActif = supporte && caps.maxMSAASamples >= 4;
-
-    if (!ssaoActif) return null;
-
-    try {
-      var ssao = new BABYLON.SSAO2RenderingPipeline(
-        "ssao2", scene, { ssaoRatio: 0.5, blurRatio: 1.0 }, [scene.activeCamera]
-      );
-
-      ssao.radius = 0.35;
-      ssao.totalStrength = 1.3;
-      ssao.base = 0.1;
-      ssao.maxZ = 250;
-      ssao.minZAspect = 0.2;
-      ssao.samples = 16;
-      ssao.expensiveBlur = true;
-      ssao.bypassBlur = false;
-
-      CONFIG.ssao = ssao;
-    } catch (e) {
-      /* Silencieux, à dessein : l'occlusion est un agrément. Une machine qui
-         la refuse doit voir sa pièce, pas un message d'erreur. */
-      CONFIG.ssao = null;
-    }
-
-    return CONFIG.ssao;
-  }
-
-  /**
-   * Rattache le post-traitement à toute caméra qui prend la main.
-   *
-   * La visite immersive ne crée pas sa propre scène : elle pose une seconde
-   * caméra sur celle-ci et la désigne active, puis rend la première en
-   * sortant. Les pipelines n'étant attachés qu'à des caméras nommées, ils
-   * s'éteindraient tout net à l'entrée dans la visite — soit exactement là
-   * où le rendu réaliste a le plus à dire.
-   */
-  function suivreCameraActive() {
-    var attachees = [scene.activeCamera];
-
-    scene.onActiveCameraChanged.add(function () {
-      var vue = scene.activeCamera;
-      if (!vue) return;
-
-      // Une caméra de visite refermée ne doit pas retenir sa place.
-      attachees = attachees.filter(function (c) {
-        return c && typeof c.isDisposed === "function" && !c.isDisposed();
-      });
-
-      if (attachees.indexOf(vue) !== -1) return;
-      attachees.push(vue);
-
-      var gestionnaire = scene.postProcessRenderPipelineManager;
-      try {
-        if (CONFIG.pipeline) {
-          gestionnaire.attachCamerasToRenderPipeline("mainPipeline", vue);
-        }
-        if (CONFIG.ssao) {
-          gestionnaire.attachCamerasToRenderPipeline("ssao2", vue);
-        }
-      } catch (e) {
-        // Le rendu reste juste, seulement moins flatteur : on n'interrompt rien.
-      }
-
-      /* Détruire une caméra ne la retire pas des pipelines : sa dépouille y
-         reste inscrite et le moteur continue de la parcourir. Sur une seule
-         visite cela ne se voit pas ; entrer et sortir vingt fois allonge la
-         liste d'autant. On la détache donc à sa propre destruction. */
-      vue.onDisposeObservable.add(function () {
-        try {
-          if (CONFIG.pipeline) {
-            gestionnaire.detachCamerasFromRenderPipeline("mainPipeline", vue);
-          }
-          if (CONFIG.ssao) {
-            gestionnaire.detachCamerasFromRenderPipeline("ssao2", vue);
-          }
-        } catch (e) {
-          // Déjà détachée : rien à faire.
-        }
-      });
-    });
   }
 
   function creerEclairage() {
@@ -743,32 +579,6 @@
        donnant le niveau de référence. */
     if (scene) {
       scene.environmentIntensity = reglage.environnement * CONFIG.hdrIntensite;
-    }
-
-    /* L'exposition suit l'ambiance. Elle ne compense pas la lumière : une
-       chambre doit rester une chambre, pas une chambre rattrapée. Les valeurs
-       se lisent en regard du multiplicateur d'environnement de chaque preset.
-
-       Le showroom est monté le plus haut alors que son environnement vaut 1 :
-       c'est le rendu de référence, celui sur lequel un client juge un carreau,
-       et il doit être franc. La lumière naturelle, elle, part déjà de 1,40 —
-       lui donner davantage brûlerait les blancs. C'est pourquoi la table n'est
-       pas l'inverse des intensités.
-
-       On lit presetActif et non le paramètre : une clé inconnue est retombée
-       sur l'ambiance par défaut juste au-dessus, et c'est celle-là qui est
-       réellement à l'écran. */
-    if (CONFIG.pipeline && CONFIG.pipeline.imageProcessing) {
-      var expositions = {
-        showroom:  1.08,
-        naturelle: 1.00,
-        bain:      1.02,
-        cuisine:   0.98,
-        chambre:   0.88
-      };
-      var exposition = expositions[presetActif];
-      CONFIG.pipeline.imageProcessing.exposure =
-        typeof exposition === "number" ? exposition : 1.0;
     }
 
     // Le soleil du ciel se replace là où pointent les ombres.
