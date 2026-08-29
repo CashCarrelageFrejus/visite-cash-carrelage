@@ -458,6 +458,14 @@
          un téléphone à forte densité suffit à faire perdre le contexte. */
       window.CAPTURES_ECRAN = false;
 
+      /* Estampille de la version publiée, posée par la construction.
+         Elle ne sert qu'au diagnostic, et elle sert beaucoup : un HTML gardé
+         en cache par le téléphone continue de servir de vieilles balises —
+         c'est ainsi que « crossorigin » est resté sans effet alors que les
+         modules, eux, étaient à jour. L'estampille le dit d'un coup d'œil,
+         au lieu de le supposer. */
+      window.VERSION_PAGE = "2026-08-29 18:09";
+
       function rien() {}
 
       window.Panneau = {
@@ -590,6 +598,7 @@
         poser();
 
         var lignes = [
+          "page    " + (window.VERSION_PAGE || "inconnue"),
           "écran   " + window.innerWidth + "×" + window.innerHeight +
             " · dpr " + window.devicePixelRatio,
           "babylon " + (window.BABYLON ? BABYLON.Engine.Version : "PAS CHARGÉ")
@@ -618,6 +627,12 @@
               (scene.imageProcessingConfiguration.toneMappingEnabled ? "ACES" : "non"));
             lignes.push("visite  " + (window.Visite && Visite.active() ? "active" : "inactive"));
           }
+        }
+
+        if (window.__PANNE_DEMARRAGE) {
+          lignes.push("");
+          lignes.push("PANNE AU DÉMARRAGE");
+          lignes.push("  " + window.__PANNE_DEMARRAGE);
         }
 
         if (incidents.length) {

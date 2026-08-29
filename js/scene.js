@@ -3786,6 +3786,42 @@
 
   // --- Démarrage -----------------------------------------------------------
 
+  /**
+   * Retient une panne de démarrage, avec son vrai message.
+   *
+   * Pourquoi ne pas se fier à window.onerror : une exception levée dans un
+   * script d'un autre domaine y arrive réduite à « Script error. », sans
+   * message ni ligne. L'attribut crossorigin est censé lever ce voile, mais
+   * il ne le lève que si la page elle-même a été rechargée — un HTML gardé
+   * en cache continue de servir des balises sans l'attribut, et le
+   * diagnostic reste muet. C'est précisément ce qui s'est produit.
+   *
+   * Une exception attrapée par un try/catch de notre propre code, elle,
+   * garde tout : message, pile, peu importe d'où elle vient. On la note ici,
+   * on l'affiche, et le relevé ?diag la lit.
+   */
+  function noterPanne(erreur) {
+    var texte = (erreur && erreur.message) || String(erreur);
+
+    if (erreur && erreur.stack) {
+      texte += " ⟨" + String(erreur.stack)
+        .split(String.fromCharCode(10)).slice(0, 3).join(" / ").slice(0, 300) + "⟩";
+    }
+
+    /* `window` et non `global` : contrairement aux autres modules, cette
+       IIFE ne reçoit pas la fenêtre en paramètre. */
+    window.__PANNE_DEMARRAGE = texte;
+    afficherErreur("Le moteur 3D n'a pas démarré : " + texte);
+
+    var ecran = document.getElementById("chargement");
+    if (ecran) {
+      ecran.classList.remove("masque");
+      ecran.style.display = "";
+      var ligne = ecran.querySelector("p");
+      if (ligne) ligne.textContent = "Moteur 3D indisponible.";
+    }
+  }
+
   function demarrer() {
     canvas = document.getElementById("renderCanvas");
 
@@ -4132,9 +4168,21 @@
     };
   }
 
+  /* Le démarrage sous surveillance. Sans ce try/catch, une exception levée
+     dans Babylon remonte au navigateur, qui l'anonymise si elle vient d'un
+     autre domaine — et l'on se retrouve devant un écran noir sans rien à
+     rapporter, ce qui a coûté plusieurs allers-retours. */
+  function demarrerSurveille() {
+    try {
+      demarrer();
+    } catch (erreur) {
+      noterPanne(erreur);
+    }
+  }
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", demarrer);
+    document.addEventListener("DOMContentLoaded", demarrerSurveille);
   } else {
-    demarrer();
+    demarrerSurveille();
   }
 })();
