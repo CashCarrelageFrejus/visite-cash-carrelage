@@ -1517,6 +1517,26 @@
       (reglage.inclinaison > 0.5 ? 1.4 : 1.0);
   }
 
+  /**
+   * Rend à l'instant la mémoire d'un canevas de travail.
+   *
+   * WebKit compte la mémoire de tous les canevas d'une page dans un même
+   * budget, et refuse d'en allouer un de plus quand le total dépasse sa
+   * limite — « Total canvas memory use exceeds the maximum limit », l'erreur
+   * qui faisait perdre le contexte sur iPhone. Un canevas abandonné garde sa
+   * surface tant que le ramasse-miettes ne l'a pas vu passer, ce qui peut
+   * prendre bien plus longtemps que la construction d'une scène.
+   *
+   * Remettre les deux dimensions à zéro libère la surface tout de suite.
+   * C'est laid, et c'est le seul moyen : il n'existe pas de « dispose » sur
+   * un canevas.
+   */
+  function libererCanevas(canevas) {
+    if (!canevas) return;
+    canevas.width = 0;
+    canevas.height = 0;
+  }
+
   /** Texture d'herbe : teinte de base nuancée par un bruit doux. */
   function creerTextureHerbe() {
     var reglage = CONFIG.exterieur.sol;
@@ -1547,7 +1567,9 @@
     }
 
     contexte.putImageData(image, 0, 0);
-    return new BABYLON.Texture(canevas.toDataURL("image/png"), scene);
+    var urlHerbe = canevas.toDataURL("image/png");
+    libererCanevas(canevas);
+    return new BABYLON.Texture(urlHerbe, scene);
   }
 
   /** Terrain herbeux sur lequel la pièce est posée. */
@@ -1646,7 +1668,10 @@
 
     contexte.putImageData(image, 0, 0);
 
-    var texture = new BABYLON.Texture(canevas.toDataURL("image/png"), scene);
+    var urlArbre = canevas.toDataURL("image/png");
+    libererCanevas(canevas);
+
+    var texture = new BABYLON.Texture(urlArbre, scene);
     texture.hasAlpha = true;
     if (arbre.miroir) texture.uScale = -1;
 

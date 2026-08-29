@@ -105,6 +105,26 @@
     });
   }
 
+  /**
+   * Rend à l'instant la mémoire d'un canevas de travail.
+   *
+   * WebKit compte la mémoire de tous les canevas d'une page dans un même
+   * budget, et refuse d'en allouer un de plus quand le total dépasse sa
+   * limite — « Total canvas memory use exceeds the maximum limit », l'erreur
+   * qui faisait perdre le contexte sur iPhone. Un canevas abandonné garde sa
+   * surface tant que le ramasse-miettes ne l'a pas vu passer, ce qui peut
+   * prendre bien plus longtemps que la construction d'une scène.
+   *
+   * Remettre les deux dimensions à zéro libère la surface tout de suite.
+   * C'est laid, et c'est le seul moyen : il n'existe pas de « dispose » sur
+   * un canevas.
+   */
+  function libererCanevas(canevas) {
+    if (!canevas) return;
+    canevas.width = 0;
+    canevas.height = 0;
+  }
+
   /** Pixels d'une image, redimensionnée si besoin. */
   function lirePixels(image, largeur, hauteur) {
     var canevas = document.createElement("canvas");
@@ -114,7 +134,10 @@
     var contexte = canevas.getContext("2d");
     contexte.drawImage(image, 0, 0, largeur, hauteur);
 
-    return contexte.getImageData(0, 0, largeur, hauteur).data;
+    /* Les pixels sont copiés par getImageData : le canevas ne sert plus. */
+    var pixels = contexte.getImageData(0, 0, largeur, hauteur).data;
+    libererCanevas(canevas);
+    return pixels;
   }
 
   /**
@@ -176,11 +199,28 @@
 
       // Data URL plutôt que RawTexture : le chemin de chargement est alors le
       // même que pour les autres cartes, donc même traitement de l'axe V.
-      return { url: canevas.toDataURL("image/png"), pilotees: pilotees };
+      var urlOrm = canevas.toDataURL("image/png");
+      libererCanevas(canevas);
+      return { url: urlOrm, pilotees: pilotees };
     });
   }
 
   // --- Atlas de tampons ------------------------------------------------------
+
+  /* Atlas déjà composés, par liste de tampons.
+
+     Une pièce dont le sol et les quatre murs portent le même carreau demande
+     cinq fois le même atlas — appliquer() est appelé par surface. Sans cette
+     table, c'étaient cinq canevas de 4096×1024 et cinq encodages PNG pour un
+     résultat identique au bit près : quatre-vingts mégaoctets de canevas
+     abandonnés là où seize suffisent, et cinq fois le temps d'attente sur un
+     téléphone.
+
+     La clé est la liste des chemins de tampons : deux matériaux bâtis sur
+     les mêmes tampons se partagent alors le même atlas, à bon droit. Rien
+     n'en sort jamais — le catalogue tient dans la quinzaine de carreaux, et
+     la table ne survit pas à la fermeture de la page. */
+  var atlasComposes = {};
 
   /**
    * Assemble les tampons d'un matériau en une seule image, côte à côte.
@@ -191,7 +231,14 @@
    * case de l'atlas à échantillonner.
    */
   function composerAtlas(urls) {
-    return Promise.all(urls.map(chargerImage)).then(function (images) {
+    var cle = urls.join("|");
+    if (atlasComposes[cle]) return atlasComposes[cle];
+
+    /* La promesse est mémorisée, et non son résultat : deux surfaces
+       demandent le même atlas dans le même tour de boucle, avant que la
+       première composition ne soit finie. Ne garder que le résultat les
+       laisserait toutes deux composer. */
+    atlasComposes[cle] = Promise.all(urls.map(chargerImage)).then(function (images) {
       var largeur = 0, hauteur = 0;
       images.forEach(function (img) {
         largeur = Math.max(largeur, img.naturalWidth);
@@ -207,12 +254,20 @@
         contexte.drawImage(img, rang * largeur, 0, largeur, hauteur);
       });
 
+      /* Le plus gros canevas du programme : quatre tampons de 1024 côte à
+         côte font 4096×1024, soit près de dix-sept mégaoctets — et un par
+         matériau posé. C'est celui dont l'abandon saturait le budget. */
+      var urlAtlas = canevas.toDataURL("image/png");
+      libererCanevas(canevas);
+
       return {
-        url: canevas.toDataURL("image/png"),
+        url: urlAtlas,
         nombre: images.length,
         largeurCase: largeur
       };
     });
+
+    return atlasComposes[cle];
   }
 
   /**
