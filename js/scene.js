@@ -3782,9 +3782,10 @@
      * est perdu à la création du moteur, avant qu'une seule texture ne soit
      * chargée. Le budget est épuisé par le tampon seul.
      *
-     * On plafonne donc la densité de rendu à 2. Au-delà, l'œil ne distingue
-     * plus grand-chose sur un écran tenu à bout de bras, et la mémoire, elle,
-     * croît avec le carré : passer de 3 à 2 la ramène à 44 %.
+     * On plafonne donc la densité de rendu — voir DENSITE_RENDU_MAX, descendu
+     * de 3 à 2 puis à 1,5, le contexte ne tenant toujours pas. La mémoire
+     * croît avec le carré : à 1,5, le tampon ne fait plus qu'un quart de la
+     * surface native. Sur un écran tenu à bout de bras, l'œil y perd peu.
      *
      * « adaptToDeviceRatio » est laissé à faux, et l'échelle posée juste après :
      * autrement Babylon allouerait d'abord le tampon en densité native — celui
@@ -3800,7 +3801,14 @@
          écran pour rien — sur un téléphone, ce rien peut coûter le contexte. */
       preserveDrawingBuffer: capturesEcranAttendues(),
       stencil: true,
-      antialias: true
+
+      /* L'anticrénelage matériel alloue un tampon multi-échantillons —
+         quatre échantillons par pixel dans le cas courant. C'est le plus
+         gros poste du démarrage, devant la résolution elle-même : à densité
+         égale, le retirer économise davantage que les deux abaissements du
+         plafond réunis. Sur un petit appareil, on préfère des arêtes un peu
+         crénelées à une pièce qu'on ne voit pas. */
+      antialias: !appareilModeste()
     }, false);
 
     engine.setHardwareScalingLevel(1 / densiteRendu);
