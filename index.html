@@ -443,6 +443,12 @@
          servir — il fixe sa configuration au chargement du fichier. */
       window.BASE_RESSOURCES = "./";
 
+      /* Cette page ne prend aucune capture d'écran : la fiche PDF est un
+         outil du magasin, pas du client. Le déclarer avant scene.js lui
+         épargne le tampon conservé — une seconde image plein écran, qui sur
+         un téléphone à forte densité suffit à faire perdre le contexte. */
+      window.CAPTURES_ECRAN = false;
+
       function rien() {}
 
       window.Panneau = {

@@ -388,6 +388,39 @@
     return Math.min(max, Math.max(min, valeur));
   }
 
+  /* Densité de rendu maximale. Au-delà, le gain visible ne paie plus la
+     mémoire consommée — et sur un téléphone, il la paie d'un écran noir. */
+  var DENSITE_RENDU_MAX = 2;
+
+  /* Largeur en deçà de laquelle on tient l'appareil pour un téléphone. */
+  var LARGEUR_TELEPHONE = 768;
+
+  /**
+   * Vrai si la page prend des captures d'écran de la scène.
+   *
+   * Seul l'outil d'édition le fait, pour la fiche PDF. La page de visite le
+   * déclare avant de charger ce fichier — comme elle déclare déjà la racine
+   * des ressources. Sans déclaration, on suppose l'outil d'édition : c'est le
+   * cas où une capture manquante se verrait tout de suite.
+   */
+  function capturesEcranAttendues() {
+    if (typeof window === "undefined") return true;
+    return window.CAPTURES_ECRAN !== false;
+  }
+
+  /**
+   * Vrai sur un appareil dont le budget graphique est étroit.
+   *
+   * Deux signaux, et l'un ou l'autre suffit : un écran étroit, ou une densité
+   * élevée. Le second attrape le téléphone tenu à l'horizontale, dont la
+   * largeur dépasse le seuil sans que sa mémoire ait grandi.
+   */
+  function appareilModeste() {
+    if (typeof window === "undefined") return false;
+    return window.innerWidth < LARGEUR_TELEPHONE ||
+           (window.devicePixelRatio || 1) > DENSITE_RENDU_MAX;
+  }
+
   function afficherErreur(message) {
     var boite = document.getElementById("erreur");
     if (!boite) return;
@@ -504,6 +537,16 @@
    */
   function creerHalo() {
     if (!scene || !BABYLON.GlowLayer) return null;
+
+    /* Une couche d'effet tient ses propres cibles de rendu, à la taille du
+       tampon, et les floute en deux passes. C'est un agrément — le jour qui
+       déborde du cadre des baies — payé en mémoire et en remplissage. Sur un
+       téléphone, où le contexte se perd déjà pour le seul tampon, l'agrément
+       n'est plus défendable : on rend la pièce, sans halo. */
+    if (appareilModeste()) {
+      CONFIG.halo = null;
+      return null;
+    }
 
     try {
       var halo = new BABYLON.GlowLayer("halo", scene, { blurKernelSize: 32 });
@@ -3716,11 +3759,37 @@
        toujours d'un corps propre. */
     afficherBandeauVisite(false);
 
+    /* Taille du tampon de rendu, arrêtée AVANT la création du moteur.
+     *
+     * Un iPhone annonce une densité de 3 : en résolution native, le tampon
+     * d'un écran de 390×844 fait 1170×2532, et il n'est pas seul — s'y
+     * ajoutent la profondeur, le stencil et les échantillons de l'anticrénelage.
+     * Le relevé ?diag pris sur l'appareil est sans appel : le contexte WebGL
+     * est perdu à la création du moteur, avant qu'une seule texture ne soit
+     * chargée. Le budget est épuisé par le tampon seul.
+     *
+     * On plafonne donc la densité de rendu à 2. Au-delà, l'œil ne distingue
+     * plus grand-chose sur un écran tenu à bout de bras, et la mémoire, elle,
+     * croît avec le carré : passer de 3 à 2 la ramène à 44 %.
+     *
+     * « adaptToDeviceRatio » est laissé à faux, et l'échelle posée juste après :
+     * autrement Babylon allouerait d'abord le tampon en densité native — celui
+     * qui tue le contexte — avant qu'on ait la main pour le réduire. On part
+     * de la taille CSS, la plus petite, et on monte. */
+    var densiteEcran = window.devicePixelRatio || 1;
+    var densiteRendu = Math.min(densiteEcran, DENSITE_RENDU_MAX);
+
     engine = new BABYLON.Engine(canvas, true, {
-      preserveDrawingBuffer: true, // nécessaire pour les captures d'écran
+      /* Le tampon conservé sert aux captures d'écran de la fiche PDF, qui
+         n'existe que dans l'outil d'édition. La visite du client n'en prend
+         aucune : lui en imposer le coût, c'est payer une seconde image plein
+         écran pour rien — sur un téléphone, ce rien peut coûter le contexte. */
+      preserveDrawingBuffer: capturesEcranAttendues(),
       stencil: true,
       antialias: true
-    }, true);
+    }, false);
+
+    engine.setHardwareScalingLevel(1 / densiteRendu);
 
     /* Perte du contexte WebGL.
      *
