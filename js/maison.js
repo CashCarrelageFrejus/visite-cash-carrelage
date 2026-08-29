@@ -551,6 +551,15 @@
         metallique: 0.0,
         alpha: N.CONFIG.maison.alphaVitre
       });
+
+      /* Le vitrage émet un peu de sa propre teinte. Sans cela il reste inerte
+         sous la couche de halo, qui ne réagit qu'à l'émissif : c'est ce qui
+         fait déborder le jour du cadre de la baie.
+
+         La teinte suit celle du verre plutôt qu'un blanc pur, pour que le
+         débord garde le bleu du ciel et ne blanchisse pas l'ouverture. */
+      materiauVitreMaison.emissiveColor = N.couleurBabylon(N.CONFIG.maison.couleurVitre);
+      materiauVitreMaison.emissiveIntensity = N.CONFIG.maison.emissiviteVitre;
     }
 
     // Un vitrage par niveau : la liste des murs porte déjà leur altitude.

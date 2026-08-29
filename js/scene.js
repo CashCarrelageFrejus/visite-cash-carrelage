@@ -283,6 +283,11 @@
       rugosite: 0.92,
       couleurVitre: "#a8cadf",
       alphaVitre: 0.28,
+      /* Émissivité du vitrage. Discrète à dessein : elle ne sert qu'à faire
+         déborder le jour du cadre de la baie sous la couche de halo, comme
+         sur une photographie d'intérieur. Au-delà, la vitre cesse d'être une
+         vitre et devient une lampe. */
+      emissiviteVitre: 0.35,
       surlignage: "#4d9fff",     // contour du mur sélectionné
       couleurEntree: "#8a5a2b",  // encadrement de la porte d'entrée
       couleurMarche: "#cfcdc7",  // pierre grise claire
@@ -432,6 +437,7 @@
 
     creerCamera();
     creerEclairage();
+    creerHalo();
     construireExterieur();
     reconstruireTout();
     construireFenetres();
@@ -467,6 +473,59 @@
     camera.panningInertia = 0.85;
     camera.inertia = 0.82;
     camera.useNaturalPinchZoom = true;
+  }
+
+  /**
+   * Halo lumineux autour des sources claires.
+   *
+   * Remplace le bloom du pipeline de post-traitement, retiré parce qu'il
+   * s'attachait aux caméras et ne survivait pas à la visite immersive. Une
+   * couche d'effet, elle, est rendue par la scène pour toute caméra : rien
+   * à rattacher, donc rien à désynchroniser.
+   *
+   * Ce halo ne touche pas les carreaux. Une couche de ce type ne réagit qu'à
+   * l'émissif d'un matériau, et un carreau n'en a aucun : sa brillance vient
+   * du spéculaire, que cette couche ne voit pas. Ce qui s'allume ici, ce sont
+   * les vitres — seul matériau franchement émissif de la scène. Le jour
+   * déborde légèrement du cadre des baies, ce qu'une photographie
+   * d'intérieur montre toujours.
+   *
+   * Le feuillage des arbres est écarté. Il porte un émissif de confort, posé
+   * pour qu'un billboard sans volume ne s'assombrisse pas d'un côté ; le
+   * laisser luire cernerait chaque arbre d'une auréole verte. On l'écarte par
+   * un sélecteur plutôt que par une liste : le décor se reconstruit à chaque
+   * changement de réglage, et une liste de maillages serait à retenir.
+   */
+  function creerHalo() {
+    if (!scene || !BABYLON.GlowLayer) return null;
+
+    try {
+      var halo = new BABYLON.GlowLayer("halo", scene, { blurKernelSize: 32 });
+      halo.intensity = 0.3;
+
+      halo.customEmissiveColorSelector = function (maillage, sousMaillage, materiau, resultat) {
+        if (maillage.name.indexOf("arbre-") === 0) {
+          resultat.set(0, 0, 0, 0);
+          return;
+        }
+
+        var e = materiau && materiau.emissiveColor;
+        if (!e) {
+          resultat.set(0, 0, 0, 0);
+          return;
+        }
+
+        resultat.set(e.r, e.g, e.b, 1);
+      };
+
+      CONFIG.halo = halo;
+    } catch (e) {
+      /* Silencieux : le halo est un agrément. Une machine qui le refuse doit
+         voir sa pièce, pas un message d'erreur. */
+      CONFIG.halo = null;
+    }
+
+    return CONFIG.halo;
   }
 
   function creerEclairage() {
