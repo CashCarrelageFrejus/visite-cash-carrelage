@@ -422,6 +422,27 @@
         afficherMetreBrut: rien,
         viserMur: rien,
 
+        /**
+         * Le catalogue, vu par le moteur.
+         *
+         * scene.js attend cette promesse avant de rejouer un lien partagé :
+         * sans le catalogue, il ne reconnaîtrait aucun identifiant de
+         * matériau et poserait une couleur unie à la place du carrelage.
+         *
+         * Ici elle ne se résout jamais, et c'est le comportement voulu. Cette
+         * page mène la restauration elle-même, plus bas : elle charge le
+         * catalogue, puis applique le lien, puis entre en visite. Laisser le
+         * chemin de scene.js aboutir en ferait une seconde, concurrente de la
+         * première. La laisser en suspens le neutralise proprement — et sans
+         * qu'il retombe sur la maison de démonstration, ce que ferait une
+         * fonction absente ou une promesse rejetée.
+         *
+         * Son absence pure et simple coûtait cher : scene.js l'appelait,
+         * l'exception remontait avant la création du moteur, et toute visite
+         * ouverte depuis un lien s'arrêtait sur « moteur 3D absent ».
+         */
+        catalogueCharge: function () { return new Promise(function () {}); },
+
         surfaceCourante: function () { return "sol"; },
 
         nomTexture: function (identifiant) {
