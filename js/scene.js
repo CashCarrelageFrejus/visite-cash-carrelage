@@ -423,6 +423,24 @@
   }
 
   /**
+   * Vrai si l'adresse demande de se passer de l'environnement HDR.
+   *
+   * Interrupteur de diagnostic, pas un réglage : la préfiltration d'un HDR
+   * est le gros morceau du démarrage après le tampon — elle convolue une
+   * carte cubique sur plusieurs niveaux de rugosité, sur le GPU, avant que
+   * la première image ne soit tracée. On soupçonne cette étape de faire
+   * perdre le contexte sur iPhone ; l'écarter le temps d'un chargement
+   * répond par oui ou par non, ce qu'aucun raisonnement ne fera.
+   *
+   * L'éclairage hémisphérique de secours prend le relais : la pièce est
+   * plus plate, sans reflets de studio, mais elle s'affiche.
+   */
+  function sansEnvironnementHdr() {
+    if (typeof window === "undefined") return false;
+    return /[?&]sanshdr/.test(window.location.search);
+  }
+
+  /**
    * Vrai sur un appareil dont le budget graphique est étroit.
    *
    * Deux signaux, et l'un ou l'autre suffit : un écran étroit, ou une densité
@@ -593,30 +611,44 @@
 
   function creerEclairage() {
     // 1. Éclairage image-based : source principale de la lumière PBR.
-    try {
-      /* HDRCubeTexture, et non CreateFromPrefilteredData : celle-ci attend un
-         .env déjà filtré, quand un .hdr est une photographie brute. Le dernier
-         argument demande le préfiltrage au chargement — sans lui, la scène
-         n'aurait qu'un reflet net, jamais la diffusion douce d'un studio. */
-      var hdr = new BABYLON.HDRCubeTexture(
-        CONFIG.baseRessources + CONFIG.hdrUrl,
-        scene,
-        CONFIG.hdrResolution,
-        false,   // pas de génération d'harmoniques sphériques séparée
-        true,    // inverser l'axe Z : convention Babylon
-        false,   // gamma : un HDR est déjà linéaire
-        true     // préfiltrer au chargement
-      );
-      scene.environmentTexture = hdr;
-      scene.environmentIntensity = CONFIG.hdrIntensite;
-
-      /* Pas de skybox tirée de l'environnement : le ciel visible est celui du
-         module extérieur. L'HDR ne sert plus qu'à l'éclairage image-based. */
-    } catch (e) {
+    if (sansEnvironnementHdr()) {
+      /* Écarté à la demande, pour le diagnostic. On le dit à l'écran : sans
+         cela, rien ne distingue une visite volontairement privée
+         d'environnement d'une visite qui l'a perdu en chemin, et le relevé
+         serait ininterprétable. */
       afficherErreur(
-        "L'environnement HDR n'a pas pu être chargé (" + e.message +
-        "). La scène reste éclairée par les lumières de secours."
+        "Environnement HDR écarté par ?sanshdr — éclairage de secours " +
+        "seul. Retirez ce paramètre de l'adresse pour retrouver les reflets."
       );
+    } else {
+      try {
+        /* HDRCubeTexture, et non CreateFromPrefilteredData : celle-ci attend
+           un .env déjà filtré, quand un .hdr est une photographie brute. Le
+           dernier argument demande le préfiltrage au chargement — sans lui, la
+           scène n'aurait qu'un reflet net, jamais la diffusion douce d'un
+           studio. C'est aussi ce préfiltrage qui coûte cher au démarrage :
+           une convolution de carte cubique, sur le GPU, avant la première
+           image. */
+        var hdr = new BABYLON.HDRCubeTexture(
+          CONFIG.baseRessources + CONFIG.hdrUrl,
+          scene,
+          CONFIG.hdrResolution,
+          false,   // pas de génération d'harmoniques sphériques séparée
+          true,    // inverser l'axe Z : convention Babylon
+          false,   // gamma : un HDR est déjà linéaire
+          true     // préfiltrer au chargement
+        );
+        scene.environmentTexture = hdr;
+        scene.environmentIntensity = CONFIG.hdrIntensite;
+
+        /* Pas de skybox tirée de l'environnement : le ciel visible est celui
+           du module extérieur. L'HDR ne sert plus qu'à l'éclairage. */
+      } catch (e) {
+        afficherErreur(
+          "L'environnement HDR n'a pas pu être chargé (" + e.message +
+          "). La scène reste éclairée par les lumières de secours."
+        );
+      }
     }
 
     /* 2. Remplissage hémisphérique : garantit une scène lisible même si le

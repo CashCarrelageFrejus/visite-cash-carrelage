@@ -408,9 +408,18 @@
     <input type="checkbox" id="exterieur" checked>
   </div>
 
-  <script src="https://cdn.babylonjs.com/babylon.js"></script>
-  <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
-  <script src="https://cdn.babylonjs.com/materialsLibrary/babylon.skyMaterial.min.js"></script>
+  <!-- « crossorigin » n'est pas décoratif ici : sans lui, une exception levée
+       dans un script d'un autre domaine arrive à window.onerror réduite à
+       « Script error. », sans message, sans fichier, sans ligne. C'est
+       exactement ce que le relevé ?diag rapportait de l'iPhone — de quoi
+       savoir qu'il y a une erreur, jamais laquelle.
+
+       Le CDN de Babylon répond « Access-Control-Allow-Origin: * » sur les
+       trois fichiers : l'attribut est donc sans risque pour le chargement,
+       et il rend au diagnostic le message, le fichier et la ligne. -->
+  <script src="https://cdn.babylonjs.com/babylon.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.babylonjs.com/materialsLibrary/babylon.skyMaterial.min.js" crossorigin="anonymous"></script>
 
   <script>
     /**
