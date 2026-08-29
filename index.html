@@ -225,41 +225,74 @@
 
     /* --- Voile de chargement --------------------------------------------- */
 
+    /* Repris tel quel de index.html : le client qui reçoit le lien doit voir
+       la même enseigne que sur le poste du magasin. Fond blanc, et non le
+       fond sombre de la visite — le logo est un positif, il se pose sur du
+       blanc. */
     #chargement {
       position: fixed;
       inset: 0;
+      z-index: 20;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 14px;
-      background: var(--fond);
-      z-index: 20;
-      transition: opacity 0.4s ease;
+      gap: 22px;
+      background: #ffffff;
+      color: #3a3f4a;
+      font-size: 13px;
+      letter-spacing: 0.04em;
       text-align: center;
       padding: 24px;
+      transition: opacity 0.4s;
     }
+
     #chargement.masque { opacity: 0; pointer-events: none; }
 
-    #chargement .titre {
-      font-size: 14px;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      color: var(--texte-faible);
+    /* Le fichier est carré et l'enseigne y flotte entre deux marges blanches.
+       Sur fond blanc, ces marges disparaissent d'elles-mêmes : le logo pose
+       sans support, ce qui est le bon usage d'un positif. */
+    #chargement .logo-wrapper {
+      position: relative;
+      overflow: hidden;
+      width: min(200px, 46vw);
+      line-height: 0;
     }
 
-    .rotor {
-      width: 30px;
-      height: 30px;
-      border: 2px solid rgba(255, 255, 255, 0.16);
-      border-top-color: #4d9fff;
-      border-radius: 50%;
-      animation: tourner 0.9s linear infinite;
+    #chargement .logo {
+      width: 100%;
+      height: auto;
+      display: block;
     }
-    @keyframes tourner { to { transform: rotate(360deg); } }
 
+    /* Le balayage. Il passe au-dessus du logo, du bas vers le haut puis
+       retour : la page respire au lieu de figer, sans rien promettre sur
+       l'avancement — ce chargement n'a pas de progression à afficher.
+
+       Lent, à dessein : il est le seul mouvement de l'écran, et un balayage
+       rapide sur un logo immobile agite plus qu'il ne rassure. */
+    #chargement .logo-wrapper::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top,
+                  transparent 0%,
+                  rgba(255, 255, 255, 0.6) 50%,
+                  transparent 100%);
+      animation: shimmer 3.5s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    @keyframes shimmer {
+      0%   { transform: translateY(100%); }
+      50%  { transform: translateY(-100%); }
+      100% { transform: translateY(100%); }
+    }
+
+    /* Un mouvement perpétuel dérange qui y est sensible : le balayage
+       s'efface, le texte suffit à dire que la page travaille. */
     @media (prefers-reduced-motion: reduce) {
-      .rotor { animation-duration: 3s; }
+      #chargement .logo-wrapper::after { display: none; }
     }
 
     /* --- Visite indisponible ---------------------------------------------- */
@@ -340,8 +373,13 @@
   <div id="manette" aria-hidden="true"><div class="pouce"></div></div>
 
   <div id="chargement">
-    <div class="rotor"></div>
-    <div class="titre">Préparation de la visite…</div>
+    <div class="logo-wrapper">
+      <!-- Le positif, et non la version détourée : cet écran est blanc, et le
+           texte du détourage l'est aussi — il y serait invisible. -->
+      <img class="logo" src="assets/logo-cashcarrelage.jpg"
+           alt="Cash Carrelage Fréjus" width="1080" height="1080">
+    </div>
+    <p style="margin:0">Chargement du moteur 3D…</p>
   </div>
 
   <div id="indisponible">
@@ -456,6 +494,125 @@
          partagée apporte la sienne : la démo la remplacerait le temps d'un
          éclair, puis serait balayée. Autant ne jamais la monter. */
       window.Traceur2D = { installer: rien, demo: rien };
+    })();
+  </script>
+
+  <script>
+    /**
+     * Relevé technique, sur demande — ?diag dans l'adresse.
+     *
+     * Un écran noir chez un client ne nous apprend rien : son téléphone n'a
+     * pas de console que nous puissions lire, et le rapport qui nous revient
+     * est « ça ne marche pas ». Ce bloc met à l'écran ce qu'on irait chercher
+     * dans la console — carte graphique, version de WebGL, mémoire de
+     * textures, taille du tampon de rendu, images par seconde, perte de
+     * contexte — et la première exception venue.
+     *
+     * Il ne s'allume que si l'adresse porte ?diag. Un client ne le verra
+     * jamais ; nous le demandons quand un appareil précis pose problème.
+     *
+     * Posé avant les modules, à dessein : une exception levée au chargement
+     * de l'un d'eux doit être retenue, et c'est justement celle qu'on
+     * cherche.
+     */
+    (function () {
+      "use strict";
+
+      if (!/[?&]diag/.test(window.location.search)) return;
+
+      var incidents = [];
+
+      window.addEventListener("error", function (e) {
+        incidents.push((e.message || "erreur") +
+          (e.filename ? " — " + e.filename.split("/").pop() + ":" + e.lineno : ""));
+      });
+
+      window.addEventListener("unhandledrejection", function (e) {
+        incidents.push("promesse rejetée : " + (e.reason && e.reason.message || e.reason));
+      });
+
+      var panneau = document.createElement("pre");
+      panneau.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:40;" +
+        "margin:0;padding:8px 10px;max-height:52vh;overflow:auto;" +
+        "background:rgba(0,0,0,0.86);color:#9fe8a0;font:11px/1.45 " +
+        "ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;" +
+        "-webkit-user-select:text;user-select:text";
+
+      function poser() {
+        if (!panneau.parentNode && document.body) document.body.appendChild(panneau);
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", poser);
+      } else {
+        poser();
+      }
+
+      function memoireTextures(scene) {
+        var vues = [];
+        var octets = 0;
+        scene.textures.forEach(function (t) {
+          var interne = t._texture;
+          if (!interne || vues.indexOf(interne) !== -1) return;
+          vues.push(interne);
+          octets += interne.width * interne.height * 4 *
+                    (interne.isCube ? 6 : 1) * 1.33;
+        });
+        return { allocations: vues.length, mo: (octets / 1048576).toFixed(0) };
+      }
+
+      function renderer(engine) {
+        try {
+          var gl = engine._gl;
+          var info = gl.getExtension("WEBGL_debug_renderer_info");
+          return gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER);
+        } catch (e) {
+          return "inconnu";
+        }
+      }
+
+      setInterval(function () {
+        poser();
+
+        var lignes = [
+          "écran   " + window.innerWidth + "×" + window.innerHeight +
+            " · dpr " + window.devicePixelRatio,
+          "babylon " + (window.BABYLON ? BABYLON.Engine.Version : "PAS CHARGÉ")
+        ];
+
+        var engine = window.BABYLON && BABYLON.Engine.LastCreatedEngine;
+
+        if (!engine) {
+          lignes.push("moteur  aucun — la scène n'a pas démarré");
+        } else {
+          var scene = engine.scenes[0];
+          lignes.push("webgl   " + engine.webGLVersion + " · " + renderer(engine));
+          lignes.push("tampon  " + engine.getRenderWidth() + "×" +
+            engine.getRenderHeight() + " · échelle " +
+            engine.getHardwareScalingLevel().toFixed(2));
+          lignes.push("contexte" + (engine._contextWasLost ? " PERDU" : " ok") +
+            " · " + Math.round(engine.getFps()) + " ips");
+
+          if (scene) {
+            var m = memoireTextures(scene);
+            lignes.push("textures " + m.allocations + " allocations · " + m.mo + " Mo");
+            lignes.push("maillages " + scene.meshes.length + " dont " +
+              scene.getActiveMeshes().length + " rendus");
+            lignes.push("halo    " + scene.effectLayers.length +
+              " · tone mapping " +
+              (scene.imageProcessingConfiguration.toneMappingEnabled ? "ACES" : "non"));
+            lignes.push("visite  " + (window.Visite && Visite.active() ? "active" : "inactive"));
+          }
+        }
+
+        if (incidents.length) {
+          lignes.push("");
+          lignes.push("INCIDENTS (" + incidents.length + ")");
+          incidents.slice(-6).forEach(function (i) { lignes.push("  " + i); });
+        }
+
+        panneau.textContent = lignes.join(String.fromCharCode(10));
+      }, 1000);
     })();
   </script>
 

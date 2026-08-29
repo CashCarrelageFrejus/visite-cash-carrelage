@@ -427,11 +427,17 @@
        Posée ici, la configuration s'applique à toute caméra de la scène,
        présente ou future, sans rien à rattacher ni à détacher. C'est moins
        flatteur — pas de bloom, pas de vignette — et c'est sûr. */
-    scene.imageProcessingConfiguration.toneMappingEnabled = true;
-    scene.imageProcessingConfiguration.toneMappingType =
-      BABYLON.ImageProcessingConfiguration.TONEMAPPING_ACES;
-    scene.imageProcessingConfiguration.exposure = 1.2;
-    scene.imageProcessingConfiguration.contrast = 1.08;
+    try {
+      scene.imageProcessingConfiguration.toneMappingEnabled = true;
+      scene.imageProcessingConfiguration.toneMappingType =
+        BABYLON.ImageProcessingConfiguration.TONEMAPPING_ACES;
+      scene.imageProcessingConfiguration.exposure = 1.2;
+      scene.imageProcessingConfiguration.contrast = 1.08;
+    } catch (e) {
+      /* Repli : exposition seule, sans tone mapping. Une machine qui refuse
+         la courbe ACES doit voir sa pièce, fût-elle moins nuancée. */
+      scene.imageProcessingConfiguration.exposure = 1.1;
+    }
 
     surfaces = Surfaces.creer();
 
@@ -3715,6 +3721,32 @@
       stencil: true,
       antialias: true
     }, true);
+
+    /* Perte du contexte WebGL.
+     *
+     * Le pilote graphique peut retirer le contexte à tout moment — mémoire
+     * épuisée, onglet mis en veille, GPU réinitialisé. C'est le mode de
+     * panne le plus probable sur un téléphone, où le budget est étroit et la
+     * page concurrente de tout le reste.
+     *
+     * Sans ces deux observateurs, la panne est muette : la boucle de rendu
+     * continue de tourner sur un contexte mort et le client reste devant un
+     * écran noir, sans rien à nous rapporter. Babylon sait rétablir le
+     * contexte et recharger ce qu'il contenait ; ce qui manquait, c'est de
+     * le dire.
+     */
+    engine.onContextLostObservable.add(function () {
+      afficherErreur(
+        "L'affichage 3D a été interrompu par l'appareil, souvent faute de " +
+        "mémoire. Rétablissement en cours — si l'image ne revient pas, " +
+        "fermez les autres onglets puis rechargez la page."
+      );
+    });
+
+    engine.onContextRestoredObservable.add(function () {
+      var boite = document.getElementById("erreur");
+      if (boite) boite.style.display = "none";
+    });
 
     /* Le noyau avant la scène : la construire meuble déjà la maison, et les
        trois fichiers n'ont rien tant qu'ils ne l'ont pas reçu. */
