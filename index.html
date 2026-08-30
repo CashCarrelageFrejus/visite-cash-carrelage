@@ -417,9 +417,28 @@
        Le CDN de Babylon répond « Access-Control-Allow-Origin: * » sur les
        trois fichiers : l'attribut est donc sans risque pour le chargement,
        et il rend au diagnostic le message, le fichier et la ligne. -->
-  <script src="https://cdn.babylonjs.com/babylon.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.babylonjs.com/materialsLibrary/babylon.skyMaterial.min.js" crossorigin="anonymous"></script>
+  <!--
+    Babylon 7.48.3, et non la version courante servie par cdn.babylonjs.com.
+
+    Trois adresses figées plutôt qu'un « dernier build » : une bibliothèque
+    qui change sous les pieds d'une page publiée est une panne qu'on ne peut
+    ni reproduire ni dater. La visite du client mérite une version qu'on a
+    vue fonctionner.
+
+    Le noyau vient de cdnjs. Les deux autres viennent de jsDelivr, faute de
+    choix : cdnjs n'héberge que le paquet « babylonjs », ni les chargeurs ni
+    la bibliothèque de matériaux — vérifié, son API répond 404 pour les deux.
+    Les trois répondent « Access-Control-Allow-Origin: * », donc crossorigin
+    tient, et une exception gardera son message.
+
+    Le chargeur glTF est indispensable : le noyau ne lit aucun format de
+    modèle, et sans lui SceneLoader ne connaît pas le .glb du mobilier.
+    Aucun chargeur d'environnement en revanche — la scène éclaire avec un
+    .hdr, que HDRCubeTexture lit depuis le noyau.
+  -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babylonjs/7.48.3/babylon.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/babylonjs-loaders@7.48.3/babylonjs.loaders.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/babylonjs-materials@7.48.3/babylon.skyMaterial.min.js" crossorigin="anonymous"></script>
 
   <script>
     /**
@@ -478,7 +497,7 @@
          c'est ainsi que « crossorigin » est resté sans effet alors que les
          modules, eux, étaient à jour. L'estampille le dit d'un coup d'œil,
          au lieu de le supposer. */
-      window.VERSION_PAGE = "2026-08-30 09:56";
+      window.VERSION_PAGE = "2026-08-30 10:10";
 
       function rien() {}
 
