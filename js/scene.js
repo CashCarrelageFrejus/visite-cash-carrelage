@@ -388,14 +388,18 @@
     return Math.min(max, Math.max(min, valeur));
   }
 
-  /* Densité de rendu maximale. Au-delà, le gain visible ne paie plus la
-     mémoire consommée — et sur un téléphone, il la paie d'un écran noir.
+  /* Densité de rendu maximale.
 
-     Descendue de 2 à 1,5 : à 2, l'iPhone perdait encore son contexte à la
-     création du moteur. Le tampon d'un écran de 390×844 passe ainsi de
-     780×1688 à 585×1266, soit 56 % des pixels de l'étage précédent et un
-     quart de la résolution native. */
-  var DENSITE_RENDU_MAX = 1.5;
+     Remontée de 1,5 à 2 : l'écran noir de l'iPhone ne venait pas de la
+     mémoire du tampon mais des tampons d'uniformes, que Safari iOS refusait
+     d'allouer. Les abaissements successifs — 3 puis 2 puis 1,5 — visaient
+     une cause qui n'en était pas une, et ne coûtaient que de la netteté.
+
+     Deux reste le bon plafond : au-delà, sur un écran tenu à bout de bras,
+     l'œil ne distingue plus grand-chose, et la mémoire croît avec le carré.
+     Sur un iPhone à densité 3, le tampon d'un écran de 390×844 fait ainsi
+     780×1688 au lieu de 1170×2532. */
+  var DENSITE_RENDU_MAX = 2;
 
   /* Largeur en deçà de laquelle on tient l'appareil pour un téléphone. */
   var LARGEUR_TELEPHONE = 768;
@@ -3895,18 +3899,18 @@
     var densiteEcran = window.devicePixelRatio || 1;
     var densiteRendu = Math.min(densiteEcran, DENSITE_RENDU_MAX);
 
-    /* Une seule décision pour l'anticrénelage, portée aux deux endroits qui
-       la réclament.
+    /* L'anticrénelage est rendu à tous les appareils. Il avait été coupé
+       sur les petits en visant, là encore, une saturation mémoire qui n'a
+       jamais été la cause de l'écran noir — les arêtes crénelées se payaient
+       pour rien.
 
-       Le deuxième argument de BABYLON.Engine est « antialias », et il écrase
-       la valeur passée dans les options. Le laisser à vrai en croyant que
-       l'option suffisait a rendu la désactivation sans effet pendant
-       plusieurs versions : le relevé annonçait quatre échantillons par pixel
-       sur un appareil censé n'en avoir aucun. On calcule donc la valeur une
-       fois, et on la donne aux deux. */
-    var anticrenelage = !appareilModeste();
-
-    engine = new BABYLON.Engine(canvas, anticrenelage, {
+       Il reste porté aux deux endroits, et c'est volontaire : le deuxième
+       argument de BABYLON.Engine est « antialias » et il écrase la valeur
+       passée dans les options. L'avoir ignoré a rendu une désactivation sans
+       effet pendant plusieurs versions — le relevé annonçait quatre
+       échantillons par pixel sur un appareil censé n'en avoir aucun. Qui
+       voudra un jour le rendre conditionnel devra changer les deux. */
+    engine = new BABYLON.Engine(canvas, true, {
       /* Le tampon conservé sert aux captures d'écran de la fiche PDF, qui
          n'existe que dans l'outil d'édition. La visite du client n'en prend
          aucune : lui en imposer le coût, c'est payer une seconde image plein
@@ -3914,13 +3918,9 @@
       preserveDrawingBuffer: capturesEcranAttendues(),
       stencil: true,
 
-      /* L'anticrénelage matériel alloue un tampon multi-échantillons —
-         quatre échantillons par pixel dans le cas courant. C'est le plus
-         gros poste du démarrage, devant la résolution elle-même : à densité
-         égale, le retirer économise davantage que les deux abaissements du
-         plafond réunis. Sur un petit appareil, on préfère des arêtes un peu
-         crénelées à une pièce qu'on ne voit pas. */
-      antialias: anticrenelage
+      /* Doit rester d'accord avec le deuxième argument ci-dessus, qui
+         l'emporte sur cette ligne. */
+      antialias: true
     }, false);
 
     /* Les tampons d'uniformes, écartés sur les petits appareils.
