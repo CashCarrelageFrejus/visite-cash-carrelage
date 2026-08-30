@@ -3920,31 +3920,30 @@
          égale, le retirer économise davantage que les deux abaissements du
          plafond réunis. Sur un petit appareil, on préfère des arêtes un peu
          crénelées à une pièce qu'on ne voit pas. */
-      antialias: anticrenelage,
-
-      /* WebGL1 sur les petits appareils, et c'est la vraie cause de l'écran
-         noir — celle que trois tours de réduction mémoire n'avaient pas
-         atteinte.
-
-         Le relevé pris sur l'iPhone dit « Unable to create uniform buffer ».
-         En WebGL2, Babylon range les uniformes des matériaux PBR dans des
-         Uniform Buffer Objects ; Safari iOS refuse l'allocation, l'exception
-         part de la construction du premier matériau et le contexte tombe
-         avant qu'une texture ne soit chargée. Ce n'était pas un problème de
-         place : c'était un objet que le navigateur refuse de créer.
-
-         WebGL1 ne connaît pas les UBO — les uniformes passent une à une par
-         gl.uniform*(). C'est un peu plus bavard à chaque image, et sans
-         importance ici : la scène tient dans quelques dizaines de maillages.
-         Le PBR, lui, est rendu à l'identique, Babylon le gérant sur les deux
-         versions ; vérifié en local en forçant WebGL1, à cinquante-six images
-         par seconde et sans différence visible.
-
-         L'iPad et le poste du magasin gardent WebGL2 : ils n'ont jamais
-         montré ce défaut, et rien ne justifie de leur retirer quoi que ce
-         soit. */
-      disableWebGL2Support: appareilModeste()
+      antialias: anticrenelage
     }, false);
+
+    /* Les tampons d'uniformes, écartés sur les petits appareils.
+     *
+     * Le relevé pris sur l'iPhone dit « Unable to create uniform buffer ».
+     * En WebGL2, Babylon range les uniformes des matériaux PBR dans des
+     * Uniform Buffer Objects ; Safari iOS refuse l'allocation, l'exception
+     * part de la construction du premier matériau, et le contexte tombe
+     * avant qu'une texture ne soit chargée. Ce n'était donc jamais une
+     * question de place — d'où trois tours de réduction mémoire sans effet.
+     *
+     * On écarte les UBO plutôt que WebGL2 tout entier : Babylon 9 ne suit
+     * plus WebGL1, et rétrograder le contexte casse davantage que ça ne
+     * répare. Ce drapeau est plus fin, et suffit — Babylon repasse alors aux
+     * gl.uniform*() classiques, une par uniforme. Un peu plus bavard à
+     * chaque image, sans importance pour quelques dizaines de maillages.
+     *
+     * Posé ici, entre la création du moteur et celle de la scène : un
+     * matériau bâti avant lui aurait déjà réclamé son tampon.
+     */
+    if (appareilModeste()) {
+      engine.disableUniformBuffers = true;
+    }
 
     engine.setHardwareScalingLevel(1 / densiteRendu);
 
