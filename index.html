@@ -464,7 +464,7 @@
          c'est ainsi que « crossorigin » est resté sans effet alors que les
          modules, eux, étaient à jour. L'estampille le dit d'un coup d'œil,
          au lieu de le supposer. */
-      window.VERSION_PAGE = "2026-08-29 18:09";
+      window.VERSION_PAGE = "2026-08-30 09:03";
 
       function rien() {}
 
@@ -610,7 +610,9 @@
           lignes.push("moteur  aucun — la scène n'a pas démarré");
         } else {
           var scene = engine.scenes[0];
-          lignes.push("webgl   " + engine.webGLVersion + " · " + renderer(engine));
+          lignes.push("webgl   " + engine.webGLVersion +
+            " · UBO " + (engine.supportsUniformBuffers ? "oui" : "non") +
+            " · " + renderer(engine));
           lignes.push("tampon  " + engine.getRenderWidth() + "×" +
             engine.getRenderHeight() + " · échelle " +
             engine.getHardwareScalingLevel().toFixed(2));

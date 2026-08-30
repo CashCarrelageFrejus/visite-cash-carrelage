@@ -449,6 +449,14 @@
    */
   function appareilModeste() {
     if (typeof window === "undefined") return false;
+
+    /* ?forcemobile joue la branche des petits appareils depuis un poste de
+       bureau : WebGL1, sans anticrénelage ni halo. Sans lui, cette branche ne
+       s'exerce que sur un téléphone qu'on n'a pas sous la main — et c'est
+       ainsi qu'un anticrénelage réputé désactivé est resté allumé sans que
+       personne le voie. */
+    if (/[?&]forcemobile/.test(window.location.search)) return true;
+
     return window.innerWidth < LARGEUR_TELEPHONE ||
            (window.devicePixelRatio || 1) > DENSITE_APPAREIL_MODESTE;
   }
@@ -3887,7 +3895,18 @@
     var densiteEcran = window.devicePixelRatio || 1;
     var densiteRendu = Math.min(densiteEcran, DENSITE_RENDU_MAX);
 
-    engine = new BABYLON.Engine(canvas, true, {
+    /* Une seule décision pour l'anticrénelage, portée aux deux endroits qui
+       la réclament.
+
+       Le deuxième argument de BABYLON.Engine est « antialias », et il écrase
+       la valeur passée dans les options. Le laisser à vrai en croyant que
+       l'option suffisait a rendu la désactivation sans effet pendant
+       plusieurs versions : le relevé annonçait quatre échantillons par pixel
+       sur un appareil censé n'en avoir aucun. On calcule donc la valeur une
+       fois, et on la donne aux deux. */
+    var anticrenelage = !appareilModeste();
+
+    engine = new BABYLON.Engine(canvas, anticrenelage, {
       /* Le tampon conservé sert aux captures d'écran de la fiche PDF, qui
          n'existe que dans l'outil d'édition. La visite du client n'en prend
          aucune : lui en imposer le coût, c'est payer une seconde image plein
@@ -3901,7 +3920,30 @@
          égale, le retirer économise davantage que les deux abaissements du
          plafond réunis. Sur un petit appareil, on préfère des arêtes un peu
          crénelées à une pièce qu'on ne voit pas. */
-      antialias: !appareilModeste()
+      antialias: anticrenelage,
+
+      /* WebGL1 sur les petits appareils, et c'est la vraie cause de l'écran
+         noir — celle que trois tours de réduction mémoire n'avaient pas
+         atteinte.
+
+         Le relevé pris sur l'iPhone dit « Unable to create uniform buffer ».
+         En WebGL2, Babylon range les uniformes des matériaux PBR dans des
+         Uniform Buffer Objects ; Safari iOS refuse l'allocation, l'exception
+         part de la construction du premier matériau et le contexte tombe
+         avant qu'une texture ne soit chargée. Ce n'était pas un problème de
+         place : c'était un objet que le navigateur refuse de créer.
+
+         WebGL1 ne connaît pas les UBO — les uniformes passent une à une par
+         gl.uniform*(). C'est un peu plus bavard à chaque image, et sans
+         importance ici : la scène tient dans quelques dizaines de maillages.
+         Le PBR, lui, est rendu à l'identique, Babylon le gérant sur les deux
+         versions ; vérifié en local en forçant WebGL1, à cinquante-six images
+         par seconde et sans différence visible.
+
+         L'iPad et le poste du magasin gardent WebGL2 : ils n'ont jamais
+         montré ce défaut, et rien ne justifie de leur retirer quoi que ce
+         soit. */
+      disableWebGL2Support: appareilModeste()
     }, false);
 
     engine.setHardwareScalingLevel(1 / densiteRendu);
