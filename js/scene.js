@@ -4243,9 +4243,27 @@
     }
   }
 
+  /**
+   * Lance le démarrage, éventuellement après un délai.
+   *
+   * La page de visite peut demander à respirer avant qu'on réclame un
+   * contexte WebGL — voir DELAI_DEMARRAGE_3D, qu'elle déclare avant de
+   * charger ce fichier. L'outil d'édition n'en déclare aucun et démarre
+   * sans attendre, comme toujours.
+   */
+  function lancerDemarrage() {
+    var delai = (typeof window !== "undefined" && window.DELAI_DEMARRAGE_3D) || 0;
+
+    if (delai > 0) {
+      setTimeout(demarrerSurveille, delai);
+    } else {
+      demarrerSurveille();
+    }
+  }
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", demarrerSurveille);
+    document.addEventListener("DOMContentLoaded", lancerDemarrage);
   } else {
-    demarrerSurveille();
+    lancerDemarrage();
   }
 })();

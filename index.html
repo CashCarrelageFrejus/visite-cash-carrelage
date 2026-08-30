@@ -458,13 +458,27 @@
          un téléphone à forte densité suffit à faire perdre le contexte. */
       window.CAPTURES_ECRAN = false;
 
+      /* Démarrage de la 3D différé de six cents millisecondes.
+       *
+       * Le moteur est bâti par scene.js, sur son propre DOMContentLoaded :
+       * retarder le demarrer() d'ici ne retarderait que le chargement des
+       * matériaux et l'entrée en visite, pas la création du moteur — or
+       * c'est là que Safari iOS lâche. Le délai est donc déclaré ici, comme
+       * la racine des ressources, et scene.js l'observe.
+       *
+       * Ce qu'on espère y gagner : que le navigateur ait fini de peindre la
+       * page, de décoder le logo et de rendre la mémoire des scripts avant
+       * qu'on lui demande un contexte WebGL. L'écran de chargement occupe
+       * l'attente, le client ne voit rien de ce délai. */
+      window.DELAI_DEMARRAGE_3D = 600;
+
       /* Estampille de la version publiée, posée par la construction.
          Elle ne sert qu'au diagnostic, et elle sert beaucoup : un HTML gardé
          en cache par le téléphone continue de servir de vieilles balises —
          c'est ainsi que « crossorigin » est resté sans effet alors que les
          modules, eux, étaient à jour. L'estampille le dit d'un coup d'œil,
          au lieu de le supposer. */
-      window.VERSION_PAGE = "2026-08-30 09:38";
+      window.VERSION_PAGE = "2026-08-30 09:56";
 
       function rien() {}
 
