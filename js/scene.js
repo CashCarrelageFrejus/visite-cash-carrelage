@@ -3943,6 +3943,28 @@
      */
     if (appareilModeste()) {
       engine.disableUniformBuffers = true;
+
+      /* Textures en virgule flottante déclarées indisponibles.
+       *
+       * Babylon choisit le format de ses cibles de rendu d'après ces
+       * capacités : les trouvant absentes, il retombe sur des textures huit
+       * bits par canal. Ce sont les cibles flottantes — quatre octets par
+       * canal, seize par pixel — qui font perdre le contexte sur Safari iOS.
+       *
+       * On ment donc au moteur, faute d'un réglage prévu pour cela : la
+       * bibliothèque n'expose pas de « préférer huit bits », seulement ce
+       * que la machine sait faire. C'est un mensonge sûr — annoncer moins
+       * que la vérité ne peut que réduire ce que Babylon tente.
+       *
+       * Avant la création de la scène, et non après : les capacités sont
+       * lues à la construction de chaque cible de rendu, et l'environnement
+       * HDR en demande une dès le premier appel.
+       */
+      var capacites = engine.getCaps();
+      capacites.textureHalfFloat = false;
+      capacites.textureFloat = false;
+      capacites.textureHalfFloatRender = false;
+      capacites.textureFloatRender = false;
     }
 
     engine.setHardwareScalingLevel(1 / densiteRendu);
