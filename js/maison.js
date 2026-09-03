@@ -592,8 +592,8 @@
    * simplement aucun maillage, `vitrages` ne posant que les ouvertures
    * vitrées.
    *
-   * Sans collision, à dessein. La visite immersive entre par cette porte :
-   * elle commence sur le pas, dehors, et le premier pas franchit le seuil.
+   * Sans collision, à dessein. La visite immersive commence juste derrière
+   * cette porte, et l'on doit pouvoir ressortir par où l'on est entré.
    * Un battant qui arrête le visiteur enfermerait la maison. Il bouche donc
    * la vue sans barrer le passage — on traverse une porte qu'on voit fermée,
    * ce qui se lit comme une porte qui s'ouvre.

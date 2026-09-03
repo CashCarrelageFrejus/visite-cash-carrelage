@@ -1,6 +1,6 @@
 {
   "commentaire": "Copie publiée, produite par outils/construire-deploiement.js. Les cartes sont les JPEG allégés ; les PNG d'origine restent dans textures/, hors ligne.",
-  "genere": "2026-08-22T21:28:21.625Z",
+  "genere": "2026-09-03T08:31:53.928Z",
   "materiaux": [
     {
       "nom": "Béton ciré gris",
@@ -11,6 +11,27 @@
         "normal": "textures/beton-cire-gris/normal.jpg",
         "orm": "textures/beton-cire-gris/orm.jpg"
       }
+    },
+    {
+      "nom": "Cotto Beige",
+      "serie": "Cotto",
+      "marque": "Drevex",
+      "coloris": "Beige",
+      "format_recommande": "100x100",
+      "rotation_aleatoire": true,
+      "origine": "photo réelle iPhone 17 — IMG_1110 — magasin Cash Carrelage Fréjus — 2026-09-03",
+      "id": "cotto_beige",
+      "cartes": {
+        "albedo": "textures/cotto_beige_albedo.jpg",
+        "normal": "textures/cotto_beige_normal.jpg",
+        "orm": "textures/cotto_beige_orm.jpg"
+      },
+      "tampons": [
+        "textures/cotto_beige_albedo.jpg",
+        "textures/cotto_beige_albedo_1.jpg",
+        "textures/cotto_beige_albedo_2.jpg",
+        "textures/cotto_beige_albedo_3.jpg"
+      ]
     },
     {
       "nom": "Halley Argent",

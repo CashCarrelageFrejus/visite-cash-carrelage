@@ -3465,10 +3465,11 @@
     document.body.classList.toggle("en-visite", visible);
   }
 
-  /* Recul du point de départ devant la porte, en mètres. Assez pour voir la
-     façade et l'encadrement de l'entrée dans le champ, assez peu pour qu'un
-     pas en avant suffise à franchir le seuil. */
-  var RECUL_ENTREE = 2.0;
+  /* Retrait du point de départ derrière la porte, à l'intérieur, en mètres.
+     Assez pour que le seuil soit franchi et que la pièce s'ouvre devant soi,
+     assez peu pour qu'un demi-tour montre encore la porte par laquelle on
+     vient d'entrer. */
+  var RETRAIT_ENTREE = 1.25;
 
   /* Écart à la porte servant à reconnaître l'intérieur. Court exprès : au
      delà, sur une petite entrée, le point d'essai sortirait par le mur d'en
@@ -3476,12 +3477,12 @@
   var SONDE_ENTREE = 0.9;
 
   /**
-   * Point de départ devant l'entrée, sur le pas de la porte, dehors.
+   * Point de départ juste derrière l'entrée, à l'intérieur, dos à la porte.
    *
-   * Le visiteur arrive comme un visiteur : depuis la rue, face à la façade,
-   * la porte devant lui. Il entre en marchant. Démarrer à l'intérieur —
-   * ce que faisait cette fonction — escamotait l'arrivée et posait le client
-   * dans une pièce sans qu'il ait vu par où il venait d'entrer.
+   * Le visiteur est déjà entré : la pièce s'ouvre devant lui dès la première
+   * image. Démarrer sur le trottoir — ce que faisait cette fonction — lui
+   * imposait une approche de façade avant de rien voir du carrelage, qui est
+   * pourtant tout l'objet de la visite.
    *
    * Reste à savoir de quel côté est la rue. Aucune convention d'orientation
    * ne le dit : la normale d'un mur est perpendiculaire, sans plus, et c'est
@@ -3489,9 +3490,9 @@
    * percement ; celui qui tombe dans une pièce est l'intérieur, l'autre est
    * le dehors.
    *
-   * @returns {{depart, regard, porte}|null} en mètres. `regard` vise
-   *   l'intérieur à travers la porte : c'est la direction dans laquelle on
-   *   franchit le seuil. `porte` donne son centre et le vecteur unitaire qui
+   * @returns {{depart, regard, porte}|null} en mètres. `regard` s'enfonce
+   *   dans la pièce, dos à la porte : c'est le sens dans lequel on vient de
+   *   franchir le seuil. `porte` donne son centre et le vecteur unitaire qui
    *   pointe vers le dehors — de quoi poser quelque chose sur le seuil sans
    *   refaire le tour des pièces pour savoir de quel côté est la rue.
    */
@@ -3504,15 +3505,26 @@
     var versInterieur = orientationEntree(porte);
     if (!versInterieur) return null;
 
-    // Le dehors, c'est l'autre côté.
+    // Le dehors, c'est l'autre côté. Les plantes du seuil s'y posent.
     var dehors = [-versInterieur[0], -versInterieur[1]];
 
-    var x = porte.centre[0] + dehors[0] * RECUL_ENTREE;
-    var z = porte.centre[1] + dehors[1] * RECUL_ENTREE;
+    /* Une entrée peu profonde ne fait pas 1,25 m : à pleine longueur le
+       point d'arrivée sortirait par le mur d'en face et l'on démarrerait
+       enfermé dans la cloison. On raccourcit jusqu'à retomber dans une
+       pièce ; la sonde d'orientation garantit la plus courte. */
+    var retrait = RETRAIT_ENTREE;
+    while (retrait > SONDE_ENTREE &&
+           !dansUnePieceAuSol(porte.centre[0] + versInterieur[0] * retrait,
+                              porte.centre[1] + versInterieur[1] * retrait)) {
+      retrait -= 0.1;
+    }
+
+    var x = porte.centre[0] + versInterieur[0] * retrait;
+    var z = porte.centre[1] + versInterieur[1] * retrait;
 
     return {
       depart: [x, z],
-      // On regarde la porte, et au-delà l'intérieur : c'est là qu'on va.
+      // On tourne le dos à la porte et on regarde la pièce, droit devant.
       regard: [x + versInterieur[0], z + versInterieur[1]],
       porte: {
         centre: [porte.centre[0], porte.centre[1]],
@@ -3531,6 +3543,14 @@
    * au nu du mur — et vaut toujours mieux que renoncer, car renoncer
    * renverrait le visiteur au milieu du salon.
    */
+  /** Le point [x, z] tombe-t-il dans une pièce du rez-de-chaussée ? */
+  function dansUnePieceAuSol(x, z) {
+    return (maison.pieces || []).some(function (piece) {
+      return !(piece.altitude > 0) && piece.contour && piece.contour.length >= 3 &&
+             Plan.pointDansPolygone([x, z], piece.contour);
+    });
+  }
+
   function orientationEntree(porte) {
     var auSol = (maison.pieces || []).filter(function (piece) {
       return !(piece.altitude > 0) && piece.contour && piece.contour.length >= 3;
@@ -4154,9 +4174,9 @@
       scene: scene,
       camera: camera,
 
-      /* Le pas de la porte d'entrée, dehors, et la direction pour entrer.
-         La page de visite s'en sert pour faire arriver le client par où l'on
-         arrive chez les gens, au lieu de le poser au milieu du salon. Rend
+      /* Le point d'arrivée juste derrière la porte d'entrée, et le regard
+         vers la pièce. La page de visite s'en sert pour poser le client là
+         où l'on se tient en entrant, plutôt qu'au milieu du salon. Rend
          null si aucune entrée n'est marquée sur le plan. */
       departDevantEntree: departDevantEntree,
 
